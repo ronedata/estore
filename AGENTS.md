@@ -93,6 +93,9 @@ home_sections: 2   home_section_products: 28 (Featured 7 + New Arrivals 21)
 - নতুন ডাম্প: `mysqldump -uroot --default-character-set=utf8mb4 --single-transaction --add-drop-table estore > database/database_estore_YY-MM-DD.sql`
 - লাইভের ব্যাকআপ আলাদা — phpMyAdmin → Export (আপলোডের আগে নিন)
 - `database/` লাইভে আপলোড করবেন না
+- **GitHub (Public):** https://github.com/ronedata/estore — `live.config.php`, `database/*.sql`, `logs/` গিটে যায় না (`.gitignore`)
+- গিটে একমাত্র ডাম্প: `database/estore_schema_demo.sql` — সব টেবিলের কাঠামো + ডেমো ডেটা; গ্রাহক/অর্ডার/মেসেজ/রিভিউ/অ্যাডমিন/`store_phone`/`store_email` **নেই**। ফাইল বদলালে ব্যক্তিগত তথ্য ঢুকল কি না যাচাই করুন; ইমপোর্ট টেস্ট: অস্থায়ী DB-তে ইমপোর্ট করে টেবিল ২২টি দেখুন
+- গিটে পুশের আগে `git diff --cached --name-only | grep -E "live.config|database/.*\.sql|logs/"` চালান (শুধু `estore_schema_demo.sql` থাকা ঠিক)
 
 ---
 
