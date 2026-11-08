@@ -1,0 +1,29 @@
+# Block script execution inside uploads (images/videos only)
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+
+<FilesMatch "\.(?i:php|phtml|php3|php4|php5|php7|phps|phar|cgi|pl|py|sh|asp|aspx|jsp)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# Neutralise polyglot files served as HTML/JS
+<FilesMatch "\.(?i:html?|xhtml|svg|js|mjs)$">
+  <IfModule mod_headers.c>
+    Header set Content-Disposition "attachment"
+    Header set X-Content-Type-Options "nosniff"
+  </IfModule>
+</FilesMatch>
+
+# NOTE: `Options` ডিরেক্টিভ অনেক শেয়ার্ড হোস্টে (InfinityFree) নিষিদ্ধ —
+#       চালু থাকলে পুরো uploads/ ফোল্ডারে HTTP 500 হয়। তাই বন্ধ রাখা হলো।
+#Options -Indexes -ExecCGI

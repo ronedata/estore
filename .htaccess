@@ -1,0 +1,74 @@
+# ==========================================================================
+#  eStore — root .htaccess
+#  উদ্দেশ্য: সংবেদনশীল ফাইল/ফোল্ডার ওয়েব থেকে আড়াল রাখা
+#  সাইটের স্বাভাবিক পেজ, uploads/, admin/, assets/ — সব অক্ষত থাকে
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# 1. সংবেদনশীল ফোল্ডার ব্লক
+#    includes/ → config.php (DB পাসওয়ার্ড), live.config.php
+#    database/ → SQL ডাম্প (সব কাস্টমার/অর্ডার/পাসওয়ার্ড হ্যাশ)
+#    tools/    → অডিট রিপোর্ট, ডায়াগনস্টিক স্ক্রিপ্ট
+# --------------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  RewriteRule ^(includes|database|tools|docs|logs)(/|$) - [F,L,NC]
+
+  # লুকানো ফাইল/ফোল্ডার (.git, .env, .htaccess ইত্যাদি)
+  RewriteRule (^|/)\.(?!well-known) - [F,L]
+
+  # ব্যাকআপ / লগ / ডকুমেন্টেশন
+  RewriteRule \.(sql|bak|backup|old|orig|save|swp|log|env|ini|dist)$ - [F,L,NC]
+  RewriteRule \.(md|markdown)$ - [F,L,NC]
+
+  # composer/package ম্যানিফেস্ট
+  RewriteRule ^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|phpunit\.xml(\.dist)?)$ - [F,L,NC]
+</IfModule>
+
+# --------------------------------------------------------------------------
+# 2. ফলব্যাক — mod_rewrite না থাকলে FilesMatch দিয়ে ব্লক
+# --------------------------------------------------------------------------
+<FilesMatch "\.(?i:sql|bak|backup|old|orig|save|swp|log|env|ini|dist|md|markdown)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+<FilesMatch "^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|phpunit\.xml(\.dist)?|\.gitignore|\.editorconfig)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# --------------------------------------------------------------------------
+# 3. নিরাপত্তা হেডার (মডিউল থাকলে)
+# --------------------------------------------------------------------------
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # PHP সোর্স কখনো ডাউনলোড হবে না
+  <FilesMatch "\.(?i:php|phtml|phps|phar)$">
+    Header always set X-Content-Type-Options "nosniff"
+  </FilesMatch>
+</IfModule>
+
+# --------------------------------------------------------------------------
+# 4. ডিরেক্টরি লিস্টিং বন্ধ (Options নয় — শেয়ার্ড হোস্টে 500 এড়াতে)
+# --------------------------------------------------------------------------
+IndexIgnore *
+
+# --------------------------------------------------------------------------
+# 5. ডিফল্ট ডকুমেন্ট
+# --------------------------------------------------------------------------
+DirectoryIndex index.php index.html

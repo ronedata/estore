@@ -1,0 +1,36 @@
+# --- Secrets / environment specific config ---
+includes/live.config.php
+includes/*.local.php
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Logs & runtime artifacts ---
+*.log
+logs/
+error_log
+php_errors.log
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
+
+# --- Dependencies ---
+node_modules/
+vendor/
+
+# --- Agent Manager / tooling state ---
+.kilo/agent-manager.json
+.kilo/worktrees/
+.kilocode/
+
+# --- Database dumps (গ্রাহক/অর্ডারের ব্যক্তিগত ডেটা থাকে) ---
+database/*.sql
+database/*.sql.gz
