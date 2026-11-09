@@ -2,14 +2,10 @@
 require_once __DIR__.'/includes/config.php';
 $pdo = get_pdo();
 
-function bn_digits($s){
-  return strtr((string)$s, ['0'=>'০','1'=>'১','2'=>'২','3'=>'৩','4'=>'৪','5'=>'৫','6'=>'৬','7'=>'৭','8'=>'৮','9'=>'৯', ','=>'٬']);
-}
-function bn_money($n){
-  $n = round((float)$n);
-  return '৳' . bn_digits(number_format($n, 0, '.', ','));
-}
-function bn_num($n){ return bn_digits($n); }
+/* সংখ্যা ইংরেজি অঙ্কে (কার্ট ও পণ্য পেজের মতো) — আগের বাংলা অঙ্ক ও আরবি হাজার-বিভাজক (٬) সাইটের ফন্টে নেই, ব্রাউজার অন্য ফন্ট এনে ভাঙা দেখাত */
+function bn_digits($s){ return (string)$s; }
+function bn_money($n){ return '৳' . number_format(round((float)$n), 0, '.', ','); }
+function bn_num($n){ return (string)(int)$n; }
 
 /* ---- "Buy Now" ---- */
 if (isset($_GET['buy'])) {
@@ -77,13 +73,15 @@ foreach ($items as $it) {
 }
 
 /* Shipping + payment */
+require_once __DIR__.'/includes/delivery.php';
 $SS = [];
 try {
-  $SS = $pdo->query("SELECT `key`,`value` FROM settings WHERE `key` IN ('delivery_dhaka','delivery_nationwide')")
+  $SS = $pdo->query("SELECT `key`,`value` FROM settings WHERE `key` IN ('cod_note')")
         ->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
 } catch (Throwable $e) {}
-$ship_dhaka = (float)($SS['delivery_dhaka'] ?? 60);
-$ship_nat   = (float)($SS['delivery_nationwide'] ?? 120);
+$ship_global = dl_global($pdo);
+$districts   = dl_all($pdo);
+$codNote = trim((string)($SS['cod_note'] ?? ''));
 
 $enabledPayments = enabled_payment_methods();
 if (!$enabledPayments) {
@@ -114,7 +112,7 @@ if ($cid > 0) {
   } catch (Throwable $e) {}
 }
 
-$initialShip = $all_have_free ? 0 : $ship_dhaka;
+$initialShip = $all_have_free ? 0 : $ship_global;
 
 include __DIR__.'/includes/partials_header.php';
 ?>
@@ -143,10 +141,10 @@ include __DIR__.'/includes/partials_header.php';
             <img src="<?php echo h($img); ?>" alt="" loading="lazy"
                  style="width:46px;height:46px;border-radius:8px;object-fit:cover;background:#f8fafc;flex:0 0 auto">
             <div style="flex:1;min-width:0">
-              <div style="font-size:.82rem;font-weight:700;line-height:1.3"><?php echo h($it['p']['name']); ?></div>
-              <div style="font-size:.72rem;color:#94a3b8">× <?php echo bn_num((int)$it['qty']); ?></div>
+              <div class="co-it-name"><?php echo h($it['p']['name']); ?></div>
+              <div class="co-it-qty">পরিমাণ: <?php echo bn_num((int)$it['qty']); ?> × <?php echo bn_money($it['p']['price']); ?></div>
             </div>
-            <div style="font-weight:800;font-size:.85rem;white-space:nowrap"><?php echo bn_money($it['line']); ?></div>
+            <div class="co-it-price"><?php echo bn_money($it['line']); ?></div>
           </li>
         <?php endforeach; ?>
       </ul>
@@ -157,8 +155,7 @@ include __DIR__.'/includes/partials_header.php';
       <div class="sum-row"><span>ডেলিভারি চার্জ</span>
         <span id="sumShip"
               data-free="<?php echo $all_have_free ? '1' : '0'; ?>"
-              data-dhaka="<?php echo $all_have_free ? 0 : (float)$ship_dhaka; ?>"
-              data-nat="<?php echo $all_have_free ? 0 : (float)$ship_nat; ?>">
+              data-global="<?php echo $all_have_free ? 0 : (float)$ship_global; ?>">
           <?php echo bn_money($initialShip); ?>
         </span>
       </div>
@@ -181,29 +178,31 @@ include __DIR__.'/includes/partials_header.php';
         <input type="hidden" name="csrf" value="<?php echo h($_SESSION['csrf'] ?? ''); ?>">
 
         <?php if ($all_have_free): ?>
-          <input type="hidden" name="shipping_area" value="dhaka">
           <input type="hidden" name="free_shipping" value="1">
           <div class="notice ok" style="margin-bottom:12px">Free Shipping প্রযোজ্য</div>
-        <?php else: ?>
-          <div class="field">
-            <label>ডেলিভারি এলাকা *</label>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="shipWrap">
-              <label class="ship-opt active">
-                <input type="radio" name="shipping_area" value="dhaka" checked>
-                <div>
-                  <div style="font-weight:800;font-size:.85rem">ঢাকার ভিতরে</div>
-                  <div style="font-size:.75rem;color:var(--text-muted)"><?php echo bn_money($ship_dhaka); ?></div>
-                </div>
-              </label>
-              <label class="ship-opt">
-                <input type="radio" name="shipping_area" value="nationwide">
-                <div>
-                  <div style="font-weight:800;font-size:.85rem">সারা দেশে</div>
-                  <div style="font-size:.75rem;color:var(--text-muted)"><?php echo bn_money($ship_nat); ?></div>
-                </div>
-              </label>
-            </div>
-          </div>
+        <?php endif; ?>
+
+        <?php if ($districts): /* টেবিল খালি/অনুপস্থিত হলে ফিল্ড বাদ — অর্ডার আটকাবে না, গ্লোবাল চার্জ লাগবে */ ?>
+        <div class="field" id="districtField">
+          <label for="cDistrict">জেলা *</label>
+          <select id="cDistrict" name="district_id" required>
+            <option value="">— জেলা বাছুন —</option>
+            <?php
+              $curDiv = null;
+              foreach ($districts as $d):
+                if ($d['division'] !== $curDiv) {
+                  if ($curDiv !== null) echo '</optgroup>';
+                  echo '<optgroup label="' . h($d['division']) . ' বিভাগ">';
+                  $curDiv = $d['division'];
+                }
+                $eff = $all_have_free ? 0 : dl_effective_fee($d, $ship_global);
+            ?>
+              <option value="<?php echo (int)$d['id']; ?>" data-fee="<?php echo (float)$eff; ?>"
+                      data-en="<?php echo h($d['name_en']); ?>" data-alt="<?php echo h(dl_aliases((string)$d['name_en'])); ?>"><?php echo h($d['name_bn']); ?></option>
+            <?php endforeach; if ($curDiv !== null) echo '</optgroup>'; ?>
+          </select>
+          <div class="help" id="districtHint"><?php echo $all_have_free ? 'ডেলিভারি চার্জ প্রযোজ্য নয়।' : 'জেলা বাছলে ডেলিভারি চার্জ হালনাগাদ হবে।'; ?></div>
+        </div>
         <?php endif; ?>
 
         <div class="field">
@@ -254,6 +253,13 @@ include __DIR__.'/includes/partials_header.php';
           </div>
         <?php endif; ?>
 
+        <?php if ($codNote !== ''): ?>
+          <div class="cod-note" id="codNote" style="display:flex;gap:8px;align-items:flex-start;margin:0 0 12px;padding:10px 12px;border-radius:12px;background:#ecfdf5;border:1px solid #d1fae5;color:#065f46;font-size:.82rem;line-height:1.5">
+            <i class="fa-solid fa-circle-info" style="margin-top:3px"></i>
+            <span><?php echo nl2br(h($codNote)); ?></span>
+          </div>
+        <?php endif; ?>
+
         <button class="btn-pill wide" type="submit" style="padding:14px;margin-top:6px">
           <i class="fa-solid fa-check-circle"></i> অর্ডার নিশ্চিত করুন
         </button>
@@ -266,13 +272,6 @@ include __DIR__.'/includes/partials_header.php';
 </div>
 
 <style>
-.ship-opt{
-  position:relative;display:flex;align-items:center;gap:10px;padding:11px 13px;
-  border:1.5px solid var(--border-color);border-radius:11px;background:#fff;cursor:pointer;
-  transition:border-color .18s,background .18s;
-}
-.ship-opt input{position:absolute;inset:0;opacity:0;cursor:pointer}
-.ship-opt.active{border-color:var(--primary-purple);background:#f7f5ff}
 .pay-opt{
   position:relative;display:block;padding:12px 14px;
   border:1.5px solid var(--border-color);border-radius:11px;background:#fff;cursor:pointer;
@@ -285,13 +284,25 @@ include __DIR__.'/includes/partials_header.php';
   #coSummary{grid-column:2;grid-row:1;position:sticky;top:96px}
   #coForm{grid-column:1;grid-row:1}
 }
+/* জেলা বাছাই-বক্সের মূল স্টাইল: assets/js/district-picker.js */
+.field.invalid .dsel-btn{border-color:#ef4444;background:#fef2f2}
+.field .help.err{color:#dc2626;font-weight:600}
+/* ---- অর্ডার সামারি টাইপোগ্রাফি ---- */
+#coSummary .co-it-name{font-size:.92rem;font-weight:600;line-height:1.35;color:var(--text-main)}
+#coSummary .co-it-qty{font-size:.8rem;font-weight:500;color:#64748b;margin-top:2px}
+#coSummary .co-it-price{font-size:.95rem;font-weight:700;white-space:nowrap;color:var(--text-main);font-variant-numeric:tabular-nums}
+#coSummary .sum-row{font-size:.92rem;font-variant-numeric:tabular-nums}
+#coSummary .sum-row span:last-child{font-weight:600;color:var(--text-main)}
+#coSummary .sum-row.total{font-size:1.1rem}
+#coSummary .sum-row.total span:last-child{font-weight:800}
 </style>
 
+<script src="<?php echo BASE_URL; ?>/assets/js/district-picker.js"></script>
 <script>
 (function(){
   function moneyBD(n){
     n = Math.round(Number(n) || 0);
-    return '৳' + n.toLocaleString('bn-BD');
+    return '৳' + n.toLocaleString('en-US');
   }
 
   const subtotalEl = document.getElementById('sumSubtotal');
@@ -299,29 +310,42 @@ include __DIR__.'/includes/partials_header.php';
   const totalEl    = document.getElementById('sumTotal');
   const isFree     = (shipEl && shipEl.dataset.free === '1');
 
-  function recalc(){
-    const subtotal = Number(subtotalEl?.dataset.subtotal || 0);
-    let ship = 0;
-    if (!isFree) {
-      const d = Number(shipEl?.dataset.dhaka || 0);
-      const n = Number(shipEl?.dataset.nat || 0);
-      ship = d;
-      const checked = document.querySelector('input[name="shipping_area"]:checked');
-      if (checked && checked.value === 'nationwide') ship = n;
-    }
-    if (shipEl)  shipEl.textContent  = moneyBD(ship);
-    if (totalEl) totalEl.textContent = moneyBD(subtotal + ship);
+  const districtSel = document.getElementById('cDistrict');
+  const hintEl      = document.getElementById('districtHint');
+
+  function currentShip(){
+    if (isFree) return 0;
+    const opt = districtSel && districtSel.selectedOptions[0];
+    if (opt && opt.value !== '' && opt.dataset.fee !== undefined) return Number(opt.dataset.fee);
+    return Number(shipEl?.dataset.global || 0);
   }
 
-  if (!isFree) {
-    document.querySelectorAll('#shipWrap .ship-opt').forEach(function(opt){
-      opt.addEventListener('click', function(){
-        document.querySelectorAll('#shipWrap .ship-opt').forEach(o => o.classList.remove('active'));
-        opt.classList.add('active');
-      });
+  function recalc(){
+    const subtotal = Number(subtotalEl?.dataset.subtotal || 0);
+    const ship = currentShip();
+    if (shipEl)  shipEl.textContent  = moneyBD(ship);
+    if (totalEl) totalEl.textContent = moneyBD(subtotal + ship);
+    if (hintEl && districtSel && districtSel.value !== '') {
+      hintEl.classList.remove('err');
+      hintEl.textContent = isFree ? 'ডেলিভারি চার্জ প্রযোজ্য নয়।' : (ship === 0 ? 'এই জেলায় ডেলিভারি ফ্রি।' : 'এই জেলার ডেলিভারি চার্জ ' + moneyBD(ship));
+    }
+  }
+
+  if (districtSel) {
+    districtSel.addEventListener('change', function(){
+      document.getElementById('districtField').classList.remove('invalid');
+      recalc();
     });
-    document.querySelectorAll('input[name="shipping_area"]').forEach(function(r){
-      r.addEventListener('change', recalc);
+  }
+
+  /* ---- খোঁজা-যোগ্য জেলা বাছাই (assets/js/district-picker.js). JS না চললে সাধারণ select-ই থাকে ---- */
+  if (districtSel && window.DistrictPicker) {
+    DistrictPicker.enhance(districtSel, {
+      buttonId: 'cDistrictBtn',
+      labelEl: document.querySelector('#districtField label'),
+      showFees: !isFree,
+      fmtMoney: moneyBD,
+      removeRequired: true
     });
   }
 
@@ -367,6 +391,16 @@ include __DIR__.'/includes/partials_header.php';
 
   form.addEventListener('submit', function(e){
     clearErr();
+    if (districtSel && districtSel.value === '') {
+      e.preventDefault();
+      document.getElementById('districtField').classList.add('invalid');
+      if (hintEl) { hintEl.textContent = 'অনুগ্রহ করে ডেলিভারির জেলা বেছে নিন।'; hintEl.classList.add('err'); }
+      const dBtn = document.getElementById('cDistrictBtn');
+      const dTarget = dBtn || districtSel;
+      dTarget.scrollIntoView({block: 'center', behavior: 'smooth'});
+      if (dBtn) dBtn.focus({preventScroll: true});
+      return;
+    }
     const res = normalizeBDMobile(mobileIn.value);
     if (!res.ok) { e.preventDefault(); showErr(res.reason); mobileIn.focus(); return; }
     mobileIn.value = res.local;

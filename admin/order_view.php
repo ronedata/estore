@@ -1,6 +1,7 @@
 <?php
 // admin/order_view.php
 require_once __DIR__.'/header.php';
+require_once __DIR__.'/../includes/delivery.php';
 gate('manage_orders');
 $pdo = get_pdo();
 
@@ -55,6 +56,7 @@ $calcSub = 0;
 foreach ($items as $r) { $calcSub += ((float)$r['price']) * ((int)$r['qty']); }
 $subtotal = isset($o['subtotal']) && $o['subtotal']!==null ? (float)$o['subtotal'] : $calcSub;
 $shipping = isset($o['shipping_fee']) ? (float)$o['shipping_fee'] : 0;
+$discount = (float)($o['discount'] ?? 0);
 $total    = isset($o['total']) ? (float)$o['total'] : ($subtotal + $shipping);
 
 /* ---------- Date nice format ---------- */
@@ -125,10 +127,16 @@ if ($created) { $ts = strtotime($created); if ($ts) $created = date('Y-m-d H:i',
           </dd>
 
           <dt class="col-5 col-sm-4">শিপিং এরিয়া</dt>
-          <dd class="col-7 col-sm-8"><?php echo h($o['shipping_area']); ?></dd>
+          <dd class="col-7 col-sm-8"><?php echo h(dl_order_area_label($o)); ?></dd>
 
           <dt class="col-5 col-sm-4">ডেলিভারি চার্জ</dt>
           <dd class="col-7 col-sm-8"><?php echo money_bd($shipping); ?></dd>
+<?php if ($discount > 0): ?>
+          <dt class="col-5 col-sm-4">ডিসকাউন্ট</dt>
+          <dd class="col-7 col-sm-8 text-success"><?php echo '&minus;'.money_bd($discount); ?>
+            <?php if (!empty($o['discount_note'])): ?><div class="small text-muted"><?php echo h($o['discount_note']); ?></div><?php endif; ?>
+            <?php if (!empty($o['discount_by'])): ?><div class="small text-muted">দিয়েছেন: <?php echo h($o['discount_by']); ?></div><?php endif; ?></dd>
+<?php endif; ?>
 
           <dt class="col-5 col-sm-4">সাবটোটাল</dt>
           <dd class="col-7 col-sm-8"><?php echo money_bd($subtotal); ?></dd>
@@ -186,6 +194,12 @@ if ($created) { $ts = strtotime($created); if ($ts) $created = date('Y-m-d H:i',
             <th colspan="3" class="text-end">ডেলিভারি</th>
             <th class="text-end"><?php echo money_bd($shipping); ?></th>
           </tr>
+<?php if ($discount > 0): ?>
+          <tr>
+            <th colspan="3" class="text-end text-success">ডিসকাউন্ট</th>
+            <th class="text-end text-success"><?php echo '&minus;'.money_bd($discount); ?></th>
+          </tr>
+<?php endif; ?>
           <tr>
             <th colspan="3" class="text-end">মোট</th>
             <th class="text-end"><?php echo money_bd($total); ?></th>

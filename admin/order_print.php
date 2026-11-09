@@ -1,6 +1,7 @@
 <?php
 // admin/order_print.php
 require_once __DIR__.'/../includes/config.php';
+require_once __DIR__.'/../includes/delivery.php';
 require_once __DIR__.'/auth.php';
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 gate('manage_orders');
@@ -13,12 +14,9 @@ if (!function_exists('h')) {
 if (!function_exists('money_bd')) {
   function money_bd($n){ $n=(float)$n; $n=round($n); return '৳'.number_format($n,0,'',','); }
 }
-function bn_digits($s){
-  return strtr((string)$s, ['0'=>'০','1'=>'১','2'=>'২','3'=>'৩','4'=>'৪','5'=>'৫','6'=>'৬','7'=>'৭','8'=>'৮','9'=>'৯']);
-}
 function dateBD($ts){
-  // d M, Y g:i A → শুধুই ডিজিটগুলো বাংলা হবে
-  return bn_digits(date('d M, Y g:i A', is_numeric($ts)? (int)$ts : strtotime($ts)));
+  /* ইংরেজি অঙ্ক — বাংলা অঙ্ক ছোট আকারে গুলিয়ে যায় (১/৬, ৪/৮); সাইটের বাকি অংশের সাথে মিল */
+  return date('d M Y, g:i A', is_numeric($ts)? (int)$ts : strtotime((string)$ts));
 }
 function status_badge_class($s){
   switch ($s) {
@@ -62,6 +60,7 @@ $calcSub = 0;
 foreach ($items as $r) { $calcSub += ((float)$r['price']) * ((int)$r['qty']); }
 $subtotal = isset($o['subtotal']) && $o['subtotal'] !== null ? (float)$o['subtotal'] : $calcSub;
 $shipping = isset($o['shipping_fee']) ? (float)$o['shipping_fee'] : 0;
+$discount = (float)($o['discount'] ?? 0);
 $total    = isset($o['total']) ? (float)$o['total'] : ($subtotal + $shipping);
 
 /* ---------- date format ---------- */
@@ -103,11 +102,17 @@ if ($created) {
       .btn-toolbar{gap:8px}
     }
     /* Print */
+    @page{ size:A4; margin:12mm; }
     @media print{
       .no-print{display:none!important}
       .wrap{margin:0;max-width:100%;padding:0}
       .table{border-color:#000}
       a{color:#000;text-decoration:none}
+      /* প্রিন্টে কাস্টমার তথ্য ও অর্ডার তথ্য সবসময় পাশাপাশি */
+      .row.g-3{ --bs-gutter-x:0; margin-left:0; margin-right:0; gap:12px; flex-wrap:nowrap; }
+      .row.g-3 > .col-12, .row.g-3 > .col-sm-6{ flex:0 0 auto; width:calc(50% - 6px); max-width:calc(50% - 6px); padding-left:0; padding-right:0; }
+      .card-mini, .table tr{ break-inside:avoid; page-break-inside:avoid; }
+      body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     }
   </style>
 </head>
@@ -143,7 +148,7 @@ if ($created) {
 
   <!-- customer & order info -->
   <div class="row g-3 mb-3">
-    <div class="col-12 col-lg-6">
+    <div class="col-12 col-sm-6">
       <div class="card card-mini">
         <div class="card-body">
           <h6 class="fw-bold mb-2">কাস্টমার তথ্য</h6>
@@ -156,13 +161,16 @@ if ($created) {
         </div>
       </div>
     </div>
-    <div class="col-12 col-lg-6">
+    <div class="col-12 col-sm-6">
       <div class="card card-mini">
         <div class="card-body">
           <h6 class="fw-bold mb-2">অর্ডার তথ্য</h6>
-          <div class="mb-1"><span class="text-muted">শিপিং এরিয়া:</span> <?php echo h($o['shipping_area']); ?></div>
+          <div class="mb-1"><span class="text-muted">শিপিং এরিয়া:</span> <?php echo h(dl_order_area_label($o)); ?></div>
           <div class="mb-1"><span class="text-muted">পেমেন্ট পদ্ধতি:</span> <?php echo h(payment_method_label($o['payment_method'] ?? '')); ?></div>
           <div class="mb-1"><span class="text-muted">ডেলিভারি চার্জ:</span> <?php echo money_bd($shipping); ?></div>
+<?php if ($discount > 0): ?>
+          <div class="mb-1"><span class="text-muted">ডিসকাউন্ট:</span> <?php echo '&minus;'.money_bd($discount); ?><?php echo !empty($o['discount_note']) ? ' ('.h($o['discount_note']).')' : ''; ?></div>
+<?php endif; ?>
         </div>
       </div>
     </div>
@@ -205,6 +213,12 @@ if ($created) {
           <th colspan="3" class="text-end">ডেলিভারি</th>
           <th class="text-end"><?php echo money_bd($shipping); ?></th>
         </tr>
+<?php if ($discount > 0): ?>
+        <tr>
+          <th colspan="3" class="text-end">ডিসকাউন্ট</th>
+          <th class="text-end"><?php echo '&minus;'.money_bd($discount); ?></th>
+        </tr>
+<?php endif; ?>
         <tr>
           <th colspan="3" class="text-end">মোট</th>
           <th class="text-end"><?php echo money_bd($total); ?></th>

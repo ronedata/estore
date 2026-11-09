@@ -9,7 +9,7 @@ if (!function_exists('money_bd')) { function money_bd($n){ $n=(float)$n; $n=roun
 if (!function_exists('bn_digits')) { function bn_digits($s){ return strtr((string)$s, ['0'=>'০','1'=>'১','2'=>'২','3'=>'৩','4'=>'৪','5'=>'৫','6'=>'৬','7'=>'৭','8'=>'৮','9'=>'৯']); } }
 if (!function_exists('dateBD')) {
     function dateBD($ts){
-        return bn_digits(date('d M, Y g:i A', is_numeric($ts)? (int)$ts : strtotime($ts)));
+        return date('d M Y, g:i A', is_numeric($ts)? (int)$ts : strtotime((string)$ts));
     }
 }
 
@@ -71,10 +71,10 @@ include __DIR__.'/includes/partials_header.php';
     box-shadow:0 2px 6px rgba(2,8,23,.02); padding:14px;
   }
   #trk .search{
-    display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center;
+    display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center;
   }
   #trk .search input{
-    height:46px; border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:16px; outline:none;
+    width:100%; min-width:0; box-sizing:border-box; height:46px; border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:16px; outline:none;
     padding-left: 38px; /* Icon space */
   }
   #trk .search input:focus{ border-color:#cfe3ff; box-shadow:0 0 0 4px #e6f0ff; }
@@ -101,8 +101,11 @@ include __DIR__.'/includes/partials_header.php';
 
   /* Result: desktop table */
   #trk .table-responsive { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-top: 14px; }
-  #trk .table { margin-bottom: 0; }
-  #trk .table th, #trk .table td { vertical-align: middle; }
+  #trk .table { width:100%; margin-bottom: 0; border-collapse: collapse; }
+  #trk .table th { background:#f8fafc; color:var(--muted); font-weight:700; font-size:13px; text-align:left; white-space:nowrap; }
+  #trk .table th, #trk .table td { padding:12px 14px; vertical-align: middle; border-bottom:1px solid var(--border); }
+  #trk .table tbody tr:last-child td { border-bottom:0; }
+  #trk .table th.right { text-align:right; }
   #trk .right{text-align:right;}
   #trk .link{ color:#0f172a; font-weight:800; text-decoration:none; }
   #trk .link:hover{ text-decoration:underline; }
@@ -127,6 +130,9 @@ include __DIR__.'/includes/partials_header.php';
       min-width: 100px; text-align: left;
     }
     #trk .td-actions { display: flex; flex-direction: column; gap: 8px; }
+    #trk .td-actions::before { display: none; }
+    #trk .search{ grid-template-columns:minmax(0,1fr); }
+    #trk .search .btn{ width:100%; }
     #trk .td-actions .btn { width: 100%; }
   }
 </style>

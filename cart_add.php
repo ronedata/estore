@@ -40,14 +40,14 @@ try {
       'message' => 'স্টকে মাত্র '.$stock.' টি আছে, তাই সর্বোচ্চ '.$stock.' টি রাখা হয়েছে।',
       'stock' => $stock,
       'qty'   => $stock,
-      'count' => array_sum(array_map('intval', $_SESSION['cart'])),
+      'count' => count(array_filter(array_map('intval', $_SESSION['cart']), function ($q) { return $q > 0; })),
     ]);
     exit;
   }
 
   $_SESSION['cart'][$pid] = $wanted;
 
-  $count = 0; foreach ($_SESSION['cart'] as $q) { $count += (int)$q; }
+  $count = 0; foreach ($_SESSION['cart'] as $q) { if ((int)$q > 0) $count++; }
 
   echo json_encode(['ok'=>true,'message'=>'কার্টে যোগ হয়েছে','count'=>$count,'qty'=>$wanted,'stock'=>$stock]);
 } catch (Throwable $e) {

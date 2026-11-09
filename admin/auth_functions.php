@@ -28,6 +28,8 @@ function get_first_allowed_page(): ?string {
         'manage_categories'     => '/admin/categories.php',
         'manage_sliders'        => '/admin/sliders.php',
         'manage_home_sections'  => '/admin/home_sections.php',
+        'manage_announcements'  => '/admin/announcements.php',
+        'manage_delivery'       => '/admin/delivery.php',
         'manage_reviews'        => '/admin/reviews.php',
         'manage_customers'      => '/admin/customers.php',
         'manage_pages'          => '/admin/pages.php',

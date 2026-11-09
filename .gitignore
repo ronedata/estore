@@ -35,3 +35,6 @@ vendor/
 database/*.sql
 database/*.sql.gz
 !database/estore_schema_demo.sql
+
+# --- ঘোষণার আপলোড করা ছবি (ব্যবহারকারীর কনটেন্ট; কোড ফোল্ডার নিজে বানায়) ---
+uploads/announcements/

@@ -78,9 +78,7 @@ if (!csrf_verify()) {
 /* Allowed keys (whitelist) */
 $allowed = [
   'store_name', 'store_phone', 'store_email', 'store_about',
-  'home_heading', 'home_notice',
   'cod_note',
-  'delivery_dhaka', 'delivery_nationwide',
   'maintenance_enabled',
   'discount_show_product', // ADDED
   'store_logo',             // NEW
@@ -113,9 +111,6 @@ foreach ($allowed as $k) {
   } elseif (in_array($k, ['social_facebook','social_instagram'], true)) {
     $v = trim((string)($_POST[$k] ?? ''));
     $data[$k] = ($v === '' || preg_match('~^https?://~i', $v)) ? $v : '';
-  } elseif (in_array($k, ['delivery_dhaka','delivery_nationwide'], true)) {
-    $v = isset($_POST[$k]) ? trim((string)$_POST[$k]) : '0';
-    $data[$k] = (string)(is_numeric($v) ? (int)$v : 0);
   } elseif (in_array($k, ['store_logo', 'store_favicon'], true)) {
     // File upload logic for logo/favicon → uploads/site_logo/
     if (!empty($_FILES[$k]['name']) && $_FILES[$k]['error'] === UPLOAD_ERR_OK && is_uploaded_file($_FILES[$k]['tmp_name'])) {

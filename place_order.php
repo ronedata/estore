@@ -1,6 +1,7 @@
 <?php
 // place_order.php — Free Shipping: কার্টের সব প্রোডাক্টে 'Free' ট্যাগ থাকলেই শিপিং ফি ০
 require_once __DIR__.'/includes/config.php';
+require_once __DIR__.'/includes/delivery.php';
 $pdo = get_pdo();
 
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
@@ -18,7 +19,21 @@ $cart = $_SESSION['cart'] ?? [];
 if (!$cart) { header('Location: cart.php'); exit; }
 
 /* ---- ইনপুট ---- */
-$shipping_area = ($_POST['shipping_area'] ?? 'dhaka') === 'nationwide' ? 'nationwide' : 'dhaka';
+/* জেলা: district_id পাঠানো থাকলে অবশ্যই বৈধ হতে হবে। পুরোনো ক্যাশ-করা চেকআউট (district_id নেই) হলে আগের shipping_area থেকে ফলব্যাক */
+$district = null;
+$districtPosted = array_key_exists('district_id', $_POST);
+if ($districtPosted) {
+  $did = (is_string($_POST['district_id']) && ctype_digit($_POST['district_id'])) ? (int)$_POST['district_id'] : 0;
+  $district = $did > 0 ? dl_get($pdo, $did) : null;
+  if (!$district) {
+    $_SESSION['flash_error'] = 'অনুগ্রহ করে ডেলিভারির জেলা বেছে নিন।';
+    header('Location: checkout.php'); exit;
+  }
+} elseif (is_string($_POST['shipping_area'] ?? null) && $_POST['shipping_area'] === 'dhaka') {
+  $st = $pdo->prepare("SELECT * FROM delivery_districts WHERE name_en='Dhaka' LIMIT 1");
+  $st->execute();
+  $district = $st->fetch() ?: null;
+}
 $name    = trim($_POST['customer_name'] ?? '');
 $mobile  = trim($_POST['mobile'] ?? '');
 $address = trim($_POST['address'] ?? '');
@@ -56,16 +71,6 @@ if (!$name || !$address || !$nv['ok']) {
 }
 $mobile_local = $nv['local'];
 $mobile_e164  = $nv['e164']; // ভবিষ্যতে দরকার হলে DB-তে আলাদা কলামে রাখবেন
-
-/* ---- শিপিং এবং পেমেন্ট সেটিংস (একসাথে) ---- */
-$settings_keys = ['delivery_dhaka', 'delivery_nationwide'];
-$placeholders = implode(',', array_fill(0, count($settings_keys), '?'));
-$stm = $pdo->prepare("SELECT `key`, `value` FROM settings WHERE `key` IN ($placeholders)");
-$stm->execute($settings_keys);
-$settings = $stm->fetchAll(PDO::FETCH_KEY_PAIR);
-
-$ship_dhaka = (float)($settings['delivery_dhaka'] ?? 60);
-$ship_nat   = (float)($settings['delivery_nationwide'] ?? 120);
 
 /* ---- Free tag detector ---- */
 function has_free_tag($tags){
@@ -116,13 +121,11 @@ foreach ($items as $it) {
 }
 $free_shipping = $all_have_free;
 
-/* ---- shipping fee ---- */
-if ($free_shipping) {
-  $shipping_fee = 0.0;               // ✅ DB-তে ০ ইনসার্ট হবে
-  // চাইলে shipping_area 'dhaka' ফিক্সড রাখতে পারেন; এখন ইউজারের সিলেকশনই রেখে দিচ্ছি
-} else {
-  $shipping_fee = ($shipping_area === 'dhaka') ? $ship_dhaka : $ship_nat;
-}
+/* ---- shipping fee: জেলার চার্জ (০ = ফ্রি), ফাঁকা হলে গ্লোবাল; Free ট্যাগে ০ ---- */
+$quote = dl_quote($pdo, $district ? (int)$district['id'] : null, $free_shipping);
+$shipping_fee      = (float)$quote['fee'];
+$shipping_area     = $quote['area'];
+$shipping_district = $district ? (string)$district['name_bn'] : null;
 
 $total = $subtotal + $shipping_fee;
 
@@ -191,10 +194,10 @@ try {
   }
 
   $ins = $pdo->prepare("INSERT INTO orders
-    (customer_name, mobile, address, shipping_area, shipping_fee, subtotal, total, payment_method, note, customer_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?)");
+    (customer_name, mobile, address, shipping_area, shipping_district, shipping_fee, subtotal, total, payment_method, note, customer_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)");
   // mobile হিসেবে লোকাল 01… ফরম্যাট সেভ করছি
-  $ins->execute([$name, $mobile_local, $address, $shipping_area, $shipping_fee, $subtotal, $total, $payment_method, $note, $customer_id]);
+  $ins->execute([$name, $mobile_local, $address, $shipping_area, $shipping_district, $shipping_fee, $subtotal, $total, $payment_method, $note, $customer_id]);
 
   $order_id = (int)$pdo->lastInsertId();
   $code = 'ORD' . str_pad((string)$order_id, 7, '0', STR_PAD_LEFT);

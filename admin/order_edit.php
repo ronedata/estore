@@ -1,6 +1,8 @@
 <?php
 // admin/order_edit.php — Edit order with qty stepper + live totals (mobile & PC friendly)
 require_once __DIR__.'/../includes/config.php';
+require_once __DIR__.'/../includes/delivery.php';
+require_once __DIR__.'/../includes/order_discount.php';
 require_once __DIR__ . '/auth.php';
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 gate('manage_orders');
@@ -58,7 +60,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save']) || isset($_P
   $mobile        = trim($_POST['mobile'] ?? '');
   $address       = trim($_POST['address'] ?? '');
   $note          = trim($_POST['note'] ?? '');
-  $shipping_area = $_POST['shipping_area'] ?? 'dhaka';
+  /* জেলা বাছা হলে (বৈধ id) জেলা ও এলাকা বদলায়; ফাঁকা রাখলে (পুরোনো অর্ডার) আগেরটাই থাকে */
+  $shipping_area     = (string)($o['shipping_area'] ?? 'dhaka');
+  $shipping_district = $o['shipping_district'] ?? null;
+  $postedDid = (isset($_POST['district_id']) && is_string($_POST['district_id']) && ctype_digit($_POST['district_id'])) ? (int)$_POST['district_id'] : 0;
+  if ($postedDid > 0) {
+    $dRow = dl_get($pdo, $postedDid);
+    if ($dRow) { $shipping_district = (string)$dRow['name_bn']; $shipping_area = dl_area_of($dRow); }
+  }
   $shipping_fee  = (float)($_POST['shipping_fee'] ?? 0);
   $status        = $_POST['status'] ?? $o['status'];
 
@@ -68,6 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save']) || isset($_P
   elseif ($mobile === '')    $err = 'মোবাইল নম্বর প্রয়োজন';
   elseif (!preg_match('/^(?:\+?88)?01[3-9]\d{8}$/', $mobile)) $err = 'সঠিক বাংলাদেশি মোবাইল নম্বর দিন';
   elseif (!in_array($status, $STATUSES, true)) $err = 'অবৈধ স্ট্যাটাস';
+
+  /* ডিসকাউন্ট: ফরম্যাট এখানে, চূড়ান্ত টাকা সাবটোটাল জানার পর (নিচে) */
+  $discType = (isset($_POST['discount_type']) && $_POST['discount_type'] === 'percent') ? 'percent' : 'amount';
+  $discVal  = $_POST['discount_value'] ?? '';
+  $discNote = od_note_clean($_POST['discount_note'] ?? '');
+  if ($err === '' && ($de = od_validate_input($discType, $discVal)) !== null) $err = $de;
 
   // Qty array
   $qtyPosted    = $_POST['qty'] ?? [];      // key = order_item_id, value = qty
@@ -112,10 +127,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save']) || isset($_P
       // 1) Update basic order fields (except totals for now)
       $upd1 = $pdo->prepare("
         UPDATE orders
-        SET customer_name=?, mobile=?, address=?, note=?, shipping_area=?, shipping_fee=?, status=?
+        SET customer_name=?, mobile=?, address=?, note=?, shipping_area=?, shipping_district=?, shipping_fee=?, status=?
         WHERE id=?
       ");
-      $upd1->execute([$customer_name, $mobile, $address, $note, $shipping_area, $shipping_fee, $status, $id]);
+      $upd1->execute([$customer_name, $mobile, $address, $note, $shipping_area, $shipping_district, $shipping_fee, $status, $id]);
 
       // 2) Update each item's qty (min 1) + স্টক ডেল্টা প্রয়োগ
       if (is_array($qtyPosted)) {
@@ -200,19 +215,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save']) || isset($_P
     $sum = $pdo->prepare("SELECT SUM(qty * price) FROM order_items WHERE order_id=?");
     $sum->execute([$id]);
     $subtotal = (float)$sum->fetchColumn();
-    $total    = $subtotal + $shipping_fee;
 
-    // 4) Save totals
-    $upd2 = $pdo->prepare("UPDATE orders SET subtotal=?, total=? WHERE id=?");
-    $upd2->execute([$subtotal, $total, $id]);
+    /* ডিসকাউন্ট: সার্ভারে সাবটোটালের ওপর হিসাব; সাবটোটালের বেশি হলে ছাঁটা হয় (JS-এর মান বিশ্বাস করা হয় না) */
+    [$discAmt, $discClamped, ] = od_resolve($discType, $discVal, $subtotal);
+    $discAmt = (float)($discAmt ?? 0);
+    $oldDisc = (float)($orderRow['discount'] ?? 0);
+    if ($discAmt > 0) {
+      $discBy = ($orderRow['discount_by'] ?? null);
+      if (abs($discAmt - $oldDisc) > 0.004 || empty($discBy)) {
+        $discBy = mb_substr((string)($_SESSION['admin_username'] ?? 'admin'), 0, 60, 'UTF-8');
+      }
+      $discNoteSave = ($discNote !== '') ? $discNote : null;
+    } else {
+      $discBy = null;
+      $discNoteSave = null;
+    }
+    $total = od_net_total($subtotal, $discAmt, $shipping_fee);
+
+    // 4) Save totals (শিপিং ফি ও ডিসকাউন্টসহ — "Update Price"-এও একই)
+    $upd2 = $pdo->prepare("UPDATE orders SET shipping_fee=?, subtotal=?, discount=?, discount_note=?, discount_by=?, total=? WHERE id=?");
+    $upd2->execute([$shipping_fee, $subtotal, $discAmt, $discNoteSave, $discBy, $total, $id]);
 
     $pdo->commit();
 
     if (isset($_POST['update_price'])) {
-        $_SESSION['flash'] = ['ok'=>true,'message'=>'মূল্য সফলভাবে আপডেট হয়েছে।'];
+        $_SESSION['flash'] = ['ok'=>true,'message'=>'মূল্য সফলভাবে আপডেট হয়েছে।'.(!empty($discClamped) ? ' (ডিসকাউন্ট সাবটোটালের সমান করা হয়েছে।)' : '')];
         header('Location: order_edit.php?id='.$id.'&return='.urlencode($returnQS)); exit;
     } else {
-        $_SESSION['flash'] = ['ok'=>true,'message'=>'অর্ডার সফলভাবে আপডেট হয়েছে।'];
+        $_SESSION['flash'] = ['ok'=>true,'message'=>'অর্ডার সফলভাবে আপডেট হয়েছে।'.(!empty($discClamped) ? ' (ডিসকাউন্ট সাবটোটালের সমান করা হয়েছে।)' : '')];
         header('Location: orders.php'.($returnQS ? '?'.$returnQS : '')); exit;
     }
   } catch(Throwable $e){
@@ -228,12 +258,17 @@ require_once __DIR__ . '/header.php';
 <style>
   .o-card{ margin-bottom: 16px; }
   .qtyBox{
-    display:grid; grid-template-columns:38px 60px 38px; align-items:center;
-    border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; background:#fff;
+    display:inline-grid; grid-template-columns:38px 60px 38px; align-items:center; width:max-content; max-width:100%;
+    border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; background:#fff; vertical-align:middle;
+    transition:border-color .15s, box-shadow .15s;
   }
-  .qtyBox input{ height:38px; text-align:center; border:none; border-inline:1px solid #e5e7eb; width:100%; }
-  .qtyBox button{ height:38px; border:none; background:#f8fafc; font-size:18px; cursor:pointer; }
-  .qtyBox button:hover{ background:#f1f5f9; }
+  .qtyBox:focus-within{ border-color:#86b7fe; box-shadow:0 0 0 3px rgba(13,110,253,.15); }
+  .qtyBox input{ height:38px; text-align:center; border:none; border-inline:1px solid #e5e7eb; width:100%; font-weight:600; font-variant-numeric:tabular-nums; outline:none; background:#fff; -moz-appearance:textfield; appearance:textfield; }
+  .qtyBox input::-webkit-outer-spin-button, .qtyBox input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .qtyBox button{ height:38px; border:none; background:#f8fafc; font-size:18px; cursor:pointer; color:#334155; }
+  .qtyBox button:hover{ background:#eef2f7; }
+  .qtyBox button:active{ background:#e2e8f0; }
+  #itemsTable .priceCell, #itemsTable .lineCell, .summary-kv .v{ font-variant-numeric:tabular-nums; }
   .summary-kv .k{ color:#64748b; }
   .summary-kv .v{ font-weight:700; text-align:right; }
 
@@ -334,14 +369,22 @@ require_once __DIR__ . '/header.php';
       <h6 class="mb-3">শিপিং ও স্ট্যাটাস</h6>
       <div class="row g-3">
         <div class="col-md-6">
-          <label class="form-label">শিপিং এলাকা</label>
-          <select name="shipping_area" class="form-select">
-            <?php foreach($AREAS as $k=>$v): ?>
-              <option value="<?php echo h($k); ?>" <?php echo $o['shipping_area']===$k?'selected':''; ?>>
-                <?php echo h($v); ?>
+          <label class="form-label">ডেলিভারির জেলা</label>
+          <?php
+            $dlAll = dl_all($pdo); $dlGlobal = dl_global($pdo); $dlCur = null;
+            foreach ($dlAll as $dd) { if ((string)$dd['name_bn'] === (string)($o['shipping_district'] ?? '')) { $dlCur = (int)$dd['id']; break; } }
+          ?>
+          <select name="district_id" id="districtSel" class="form-select">
+            <option value=""><?php echo ($o['shipping_district'] ?? '') !== '' ? h($o['shipping_district']).' (অপরিবর্তিত)' : 'জেলা নির্ধারিত নেই ('.h(dl_order_area_label($o)).')'; ?></option>
+            <?php $dlDiv = null; foreach ($dlAll as $dd):
+              if ($dd['division'] !== $dlDiv) { if ($dlDiv !== null) echo '</optgroup>'; echo '<optgroup label="'.h($dd['division']).' বিভাগ">'; $dlDiv = $dd['division']; } ?>
+              <option value="<?php echo (int)$dd['id']; ?>" data-fee="<?php echo (float)dl_effective_fee($dd, $dlGlobal); ?>"
+                      data-en="<?php echo h($dd['name_en']); ?>" data-alt="<?php echo h(dl_aliases((string)$dd['name_en'])); ?>" <?php echo $dlCur === (int)$dd['id'] ? 'selected' : ''; ?>>
+                <?php echo h($dd['name_bn']); ?>
               </option>
-            <?php endforeach; ?>
+            <?php endforeach; if ($dlDiv !== null) echo '</optgroup>'; ?>
           </select>
+          <div class="form-text">জেলা বদলালে শিপিং ফি নিজে বসে যায় (হাতে বদলানো যাবে)।</div>
         </div>
         <div class="col-md-6">
           <label class="form-label">শিপিং ফি</label>
@@ -362,6 +405,27 @@ require_once __DIR__ . '/header.php';
           <label class="form-label">পেমেন্ট</label>
           <input class="form-control" value="<?php echo h(payment_method_label($o['payment_method'] ?? '')); ?>" readonly>
         </div>
+        <?php $curDisc = (float)($o['discount'] ?? 0); $curDiscTxt = $curDisc > 0 ? rtrim(rtrim(number_format($curDisc, 2, '.', ''), '0'), '.') : ''; ?>
+        <div class="col-md-6">
+          <label class="form-label" for="discVal">ডিসকাউন্ট</label>
+          <div class="input-group">
+            <select name="discount_type" id="discType" class="form-select" style="max-width:132px" aria-label="ডিসকাউন্টের ধরন">
+              <option value="amount">৳ টাকা</option>
+              <option value="percent">% শতাংশ</option>
+            </select>
+            <input type="number" name="discount_value" id="discVal" class="form-control" min="0" step="0.01" inputmode="decimal"
+                   placeholder="0" value="<?php echo h($curDiscTxt); ?>">
+          </div>
+          <div class="form-text" id="discHint">সাবটোটাল থেকে কাটা হবে। ৳ (টাকা) বা % (শতাংশ)।</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="discNote">ডিসকাউন্টের কারণ <span class="text-muted fw-normal">(ঐচ্ছিক)</span></label>
+          <input type="text" name="discount_note" id="discNote" class="form-control" maxlength="160"
+                 placeholder="যেমন: নিয়মিত ক্রেতা" value="<?php echo h($o['discount_note'] ?? ''); ?>">
+          <?php if ($curDisc > 0 && !empty($o['discount_by'])): ?>
+            <div class="form-text">দিয়েছেন: <?php echo h($o['discount_by']); ?></div>
+          <?php endif; ?>
+        </div>
       </div>
 
       <hr class="my-3">
@@ -370,6 +434,8 @@ require_once __DIR__ . '/header.php';
       <div class="row summary-kv small gy-1">
         <div class="col-6 k">Subtotal</div><div class="col-6 v" id="sumSubtotal"><?php echo money_bd($o['subtotal']); ?></div>
         <div class="col-6 k">Shipping</div><div class="col-6 v" id="sumShipping"><?php echo money_bd($o['shipping_fee']); ?></div>
+        <div class="col-6 k" id="sumDiscLabel" <?php echo ((float)($o['discount'] ?? 0)) > 0 ? '' : 'hidden'; ?>>Discount</div>
+        <div class="col-6 v text-success" id="sumDiscount" <?php echo ((float)($o['discount'] ?? 0)) > 0 ? '' : 'hidden'; ?>>&minus;<?php echo money_bd($o['discount'] ?? 0); ?></div>
         <div class="col-12"><hr class="my-2"></div>
         <div class="col-6 k">Total</div><div class="col-6 v" id="sumTotal" style="font-weight:800"><?php echo money_bd($o['total']); ?></div>
       </div>
@@ -449,7 +515,7 @@ require_once __DIR__ . '/header.php';
 // ---- Helpers ----
 function bdMoney(n){
   n = Math.round(Number(n)||0);
-  return '৳' + n.toLocaleString('bn-BD');
+  return '৳' + n.toLocaleString('en-US');
 }
 
 // ---- Order editor (global module) ----
@@ -491,9 +557,27 @@ window.orderEditor = (function(){
     });
 
     const ship = parseFloat(feeEl?.value || 0) || 0;
+
+    /* ডিসকাউন্ট (সার্ভারেও একই নিয়মে আবার হিসাব হয়) */
+    const dType = document.getElementById('discType'), dVal = document.getElementById('discVal'), dHint = document.getElementById('discHint');
+    let disc = 0, capped = false, bad = false;
+    const dv = parseFloat(dVal?.value);
+    if (dVal && dVal.value.trim() !== '' && (isNaN(dv) || dv < 0 || (dType?.value === 'percent' && dv > 100))) bad = true;
+    else if (!isNaN(dv) && dv > 0) disc = (dType?.value === 'percent') ? Math.round(subtotal * dv) / 100 : dv;
+    if (disc > subtotal) { disc = subtotal; capped = true; }
+    const sdl = document.getElementById('sumDiscLabel'), sdv = document.getElementById('sumDiscount');
+    if (sdl && sdv) { sdl.hidden = !(disc > 0); sdv.hidden = !(disc > 0); sdv.textContent = '\u2212' + bdMoney(disc); }
+    if (dHint) {
+      dHint.classList.toggle('text-danger', bad || capped);
+      dHint.textContent = bad ? 'ডিসকাউন্টের মান সঠিক নয় (০ বা ধনাত্মক সংখ্যা; % হলে সর্বোচ্চ ১০০)।'
+        : capped ? 'ডিসকাউন্ট সাবটোটালের বেশি হতে পারে না — সাবটোটালের সমান ধরা হলো।'
+        : (disc > 0 && dType?.value === 'percent') ? ('= ' + bdMoney(disc) + ' ছাড় (সাবটোটালের ' + dv + '%)')
+        : 'সাবটোটাল থেকে কাটা হবে। ৳ (টাকা) বা % (শতাংশ)।';
+    }
+
     if (sumSub)  sumSub.textContent = bdMoney(subtotal);
     if (sumShip) sumShip.textContent= bdMoney(ship);
-    if (sumTot)  sumTot.textContent = bdMoney(subtotal + ship);
+    if (sumTot)  sumTot.textContent = bdMoney(Math.max(0, subtotal - disc + ship));
 
     toggleButtons(itemCount);
   }
@@ -555,8 +639,17 @@ window.orderEditor = (function(){
   });
 
   // Shipping fee change
+  document.getElementById('districtSel')?.addEventListener('change', function(){
+    const opt = this.selectedOptions[0];
+    if (opt && opt.value !== '' && opt.dataset.fee !== undefined && feeEl) {
+      feeEl.value = opt.dataset.fee;
+      feeEl.dispatchEvent(new Event('input', {bubbles:true}));
+    }
+  });
   feeEl?.addEventListener('input', setDirty);
   feeEl?.addEventListener('change', setDirty);
+  document.getElementById('discVal')?.addEventListener('input', setDirty);
+  document.getElementById('discType')?.addEventListener('change', setDirty);
 
   // public API
   return { recalc, setDirty };
@@ -658,6 +751,27 @@ window.orderEditor.recalc();
     if (!resultsDiv.contains(e.target) && e.target !== searchInput) {
       resultsDiv.style.display = 'none';
     }
+  });
+})();
+</script>
+<script src="<?php echo BASE_URL; ?>/assets/js/district-picker.js"></script>
+<script>
+/* ডেলিভারির জেলা: খোঁজা-যোগ্য বাছাই (শেয়ার করা assets/js/district-picker.js) */
+(function(){
+  var sel = document.getElementById('districtSel');
+  if (!sel || !window.DistrictPicker) return;
+  var col = sel.closest('.col-md-6');
+  DistrictPicker.enhance(sel, {
+    buttonId: 'districtBtn',
+    labelEl: col ? col.querySelector('label') : null,
+    showFees: true,
+    fmtMoney: bdMoney,
+    admin: true,
+    blankPlain: true,
+    minWidth: 300,
+    placeholder: 'জেলা খুঁজুন (বাংলা/English)',
+    removeRequired: false,
+    title: 'ডেলিভারির জেলা'
   });
 })();
 </script>

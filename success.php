@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/includes/config.php';
+require_once __DIR__.'/includes/delivery.php';
 $pdo = get_pdo();
 
 $id  = (int)($_GET['id'] ?? 0);
@@ -9,8 +10,9 @@ $o = $stm->fetch();
 
 /* ========== Settings / Support ========== */
 $store_phone = (string)($pdo->query("SELECT value FROM settings WHERE `key`='store_phone'")->fetch()['value'] ?? '');
-$ship_dhaka  = (float)($pdo->query("SELECT value FROM settings WHERE `key`='delivery_dhaka'")->fetch()['value'] ?? 60);
-$ship_nat    = (float)($pdo->query("SELECT value FROM settings WHERE `key`='delivery_nationwide'")->fetch()['value'] ?? 120);
+$ship_nat    = dl_global($pdo);
+$ship_dhaka  = $ship_nat;
+foreach (dl_all($pdo) as $dlRow) { if ($dlRow['name_en'] === 'Dhaka') { $ship_dhaka = dl_effective_fee($dlRow, $ship_nat); break; } }
 
 /* ========== BN helpers ========== */
 function bn_digits($s){
@@ -58,7 +60,9 @@ if ($ship_fee_raw === null || $ship_fee_raw === '') {
   $ship_fee = (float)$ship_fee_raw; // 0 হলে 그대로 থাকবে => Free Shipping
 }
 
-$ship_area_label = (in_array($ship_area_raw, ['nationwide','outside_dhaka','outside-dhaka'])) ? 'সারা দেশে' : 'ঢাকার ভিতরে';
+$ship_area_label = trim((string)($o['shipping_district'] ?? '')) !== ''
+  ? (string)$o['shipping_district']
+  : ((in_array($ship_area_raw, ['nationwide','outside_dhaka','outside-dhaka'])) ? 'সারা দেশে' : 'ঢাকার ভিতরে');
 
 $grand_total = (float)($o['grand_total'] ?? $o['total'] ?? $o['payable'] ?? $o['amount'] ?? 0);
 $subtotal    = $o['subtotal'] ?? $o['sub_total'] ?? $o['items_total'] ?? $o['total_without_shipping'] ?? null;
@@ -186,7 +190,7 @@ include __DIR__.'/includes/partials_header.php';
               <span><span class="<?php echo h($status_class); ?>"><?php echo h($status_text); ?></span></span>
             </div>
             <div class="summary-row"><span>সাবটোটাল</span> <span><?php echo bn_money($subtotal); ?></span></div>
-            <div class="summary-row"><span>ডেলিভারি চার্জ</span> <span><?php echo bn_money($ship_fee); ?></span></div>
+            <div class="summary-row"><span>ডেলিভারি চার্জ<?php echo trim((string)($o['shipping_district'] ?? '')) !== '' ? ' ('.h($o['shipping_district']).')' : ''; ?></span> <span><?php echo bn_money($ship_fee); ?></span></div>
             <div class="summary-row total"><span>সর্বমোট</span> <span><?php echo bn_money($grand_total); ?></span></div>
           </div>
         </div>

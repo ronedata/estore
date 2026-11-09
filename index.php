@@ -10,7 +10,7 @@ $pdo = get_pdo();
 $S = [];
 try {
   $S = $pdo->query("SELECT `key`,`value` FROM settings WHERE `key` IN
-    ('store_name','store_about','hero_autoplay_ms','home_heading','home_notice',
+    ('store_name','store_about','hero_autoplay_ms',
      'info1_title','info1_sub','info2_title','info2_sub','info3_title','info3_sub')")
     ->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
 } catch (Throwable $e) { $S = []; }
@@ -227,8 +227,8 @@ include __DIR__.'/includes/partials_header.php';
 <?php else: ?>
 <section class="wrap reveal" style="margin-top:14px">
   <div class="hero-empty">
-    <h2><?php echo h($S['home_heading'] ?? ($S['store_name'] ?? APP_NAME)); ?>-এ স্বাগতম</h2>
-    <p><?php echo h($S['home_notice'] ?? 'সেরা দামে অরিজিনাল পণ্য, ক্যাশ অন ডেলিভারি সুবিধা।'); ?></p>
+    <h2><?php echo h($S['store_name'] ?? APP_NAME); ?>-এ স্বাগতম</h2>
+    <p>সেরা দামে অরিজিনাল পণ্য, ক্যাশ অন ডেলিভারি সুবিধা।</p>
     <a href="<?php echo BASE_URL; ?>/shop.php" class="btn-pill" style="margin-top:12px">
       <i class="fa-solid fa-store"></i> শপিং শুরু করুন
     </a>

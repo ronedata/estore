@@ -34,7 +34,7 @@ if ($isAjax) {
   header('Content-Type: application/json; charset=utf-8');
   $count = 0;
   if (!empty($_SESSION['cart'])) {
-    foreach ($_SESSION['cart'] as $q) { $count += (int)$q; }
+    foreach ($_SESSION['cart'] as $q) { if ((int)$q > 0) $count++; }
   }
   echo json_encode(['ok' => true, 'count' => $count]);
   exit;

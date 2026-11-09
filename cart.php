@@ -70,9 +70,9 @@ include __DIR__.'/includes/partials_header.php';
               </a>
 
               <div class="cr-meta">
-                <span class="cr-price"><?php echo money_bd($it['line']); ?></span>
-                <button type="button" class="cr-remove"
-                        onclick="cartRemove(<?php echo $pid; ?>)">
+                <span><span class="cr-price"><?php echo money_bd($it['p']['price']); ?></span><span class="cr-unit">প্রতিটি</span></span>
+                <button type="button" class="cr-remove" aria-label="<?php echo h($it['p']['name']); ?> কার্ট থেকে সরান"
+                        onclick="cartRemove(<?php echo $pid; ?>, this)">
                   <i class="fa-regular fa-trash-can"></i> সরান
                 </button>
               </div>
@@ -92,6 +92,7 @@ include __DIR__.'/includes/partials_header.php';
                 <?php if ($it['stock'] <= 5): ?>
                   <small style="color:#b45309;font-weight:700;font-size:.72rem">স্টকে মাত্র <?php echo (int)$it['stock']; ?> টি</small>
                 <?php endif; ?>
+                <span class="cr-line" aria-label="এই পণ্যের মোট"><?php echo money_bd($it['line']); ?></span>
               </div>
             </div>
           </div>
@@ -105,10 +106,10 @@ include __DIR__.'/includes/partials_header.php';
       </div>
 
       <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:26px">
-        <a class="btn-pill" style="padding:14px" href="<?php echo BASE_URL; ?>/checkout.php">
+        <button class="btn-pill" type="submit" name="next" value="checkout.php" id="cartCheckoutBtn" style="padding:14px;width:100%;border:0;cursor:pointer">
           <i class="fa-solid fa-arrow-right"></i> চেকআউট করুন
-        </a>
-        <button class="btn-pill ghost" type="submit" style="padding:12px">
+        </button>
+        <button class="btn-pill ghost" type="submit" id="cartUpdateBtn" style="padding:12px">
           <i class="fa-solid fa-rotate"></i> পরিমাণ আপডেট করুন
         </button>
         <a class="btn-pill ghost" href="<?php echo BASE_URL; ?>/shop.php" style="padding:12px">আরও কিনুন</a>
@@ -117,9 +118,43 @@ include __DIR__.'/includes/partials_header.php';
   <?php endif; ?>
 </div>
 
+<style>
+.cart-row .cr-unit{font-size:.72rem;color:#94a3b8;margin-left:2px}
+.cart-row .cr-line{margin-left:auto;font-size:1rem;font-weight:800;color:var(--text-main);white-space:nowrap;font-variant-numeric:tabular-nums}
+.cart-row .cr-remove{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:6px 13px;border:1px solid #fecaca;border-radius:999px;background:#fef2f2;color:#dc2626;font-size:.8rem;font-weight:600;line-height:1;cursor:pointer;transition:background .15s,border-color .15s,color .15s,transform .1s,box-shadow .15s}
+.cart-row .cr-remove i{font-size:.82rem}
+.cart-row .cr-remove:hover{background:#fee2e2;border-color:#fca5a5;color:#b91c1c}
+.cart-row .cr-remove:active{transform:scale(.96)}
+.cart-row .cr-remove:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(239,68,68,.28)}
+.cart-row .cr-remove:disabled,.cart-row .cr-remove.is-busy{opacity:.65;cursor:progress;pointer-events:none}
+@media (max-width:480px){.cart-row .cr-remove{min-height:38px;padding:7px 15px}}
+</style>
 <script>
 function fmtBD(n){
-  return '৳' + Math.round(n).toLocaleString('en-IN');
+  return '৳' + Math.round(n).toLocaleString('en-US');
+}
+
+/* পরিমাণ বদলালে কিছুক্ষণ পর নিজে সার্ভারে সেভ — অন্য পেজে গেলেও/ফিরে এলেও পরিমাণ হারায় না */
+function cartSetBadges(n){
+  ['cartCount', 'bnCartCount'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = n;
+    el.classList.toggle('show', n > 0);
+  });
+}
+var cartSaveTimer = null;
+function cartSaveSoon(){
+  clearTimeout(cartSaveTimer);
+  cartSaveTimer = setTimeout(cartSave, 350);
+}
+function cartSave(){
+  var form = document.getElementById('cartForm');
+  if (!form) return;
+  var fd = new FormData(form);
+  fetch(form.action, {method: 'POST', body: fd, redirect: 'manual', keepalive: true})
+    .then(function(){ if (typeof window.refreshCartCount === 'function') window.refreshCartCount(); })
+    .catch(function(){});
 }
 
 function cartQty(btn, delta){
@@ -132,16 +167,23 @@ function cartQty(btn, delta){
   }
   inp.value = v;
   cartRecalc();
+  cartSaveSoon();
 }
 
 function cartRecalc(){
-  var total = 0;
+  var total = 0, kinds = 0;
   document.querySelectorAll('#cartForm .qtyInput').forEach(function(inp){
     var max = parseInt(inp.dataset.max || '1', 10) || 1;
     var v = Math.min(max, Math.max(1, parseInt(inp.value, 10) || 1));
     inp.value = v;
-    total += v * parseFloat(inp.dataset.price || '0');
+    var line = v * parseFloat(inp.dataset.price || '0');
+    total += line;
+    kinds++;
+    var row = inp.closest('.cart-row');
+    var le = row ? row.querySelector('.cr-line') : null;
+    if (le) le.textContent = fmtBD(line);
   });
+  cartSetBadges(kinds);
   var s = document.getElementById('cartSubtotal');
   var t = document.getElementById('cartTotal');
   if (s) s.textContent = fmtBD(total);
@@ -149,10 +191,22 @@ function cartRecalc(){
 }
 
 document.querySelectorAll('#cartForm .qtyInput').forEach(function(inp){
-  inp.addEventListener('change', cartRecalc);
+  inp.addEventListener('change', function(){ cartRecalc(); cartSaveSoon(); });
 });
 
-function cartRemove(pid){
+function cartRemove(pid, btn){
+  clearTimeout(cartSaveTimer);
+  var orig = null;
+  if (btn) {
+    if (btn.disabled) return;
+    orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('is-busy');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> সরানো হচ্ছে…';
+  }
+  function cartRemoveReset(){
+    if (btn && orig !== null) { btn.disabled = false; btn.classList.remove('is-busy'); btn.innerHTML = orig; }
+  }
   var fd = new URLSearchParams();
   fd.set('product_id', String(pid));
   fd.set('next', 'cart.php');
@@ -165,6 +219,7 @@ function cartRemove(pid){
   }).then(function(r){
     if (r && (r.status === 403 || r.status === 419)) {
       if (typeof estoreToast === 'function') estoreToast('সেশন মেয়াদোত্তীর্ণ — পেজ রিফ্রেশ করুন।', 'err');
+      cartRemoveReset();
       return;
     }
     window.location.reload();

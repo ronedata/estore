@@ -1,6 +1,7 @@
 <?php
 // order_details.php
 require_once __DIR__.'/includes/config.php';
+require_once __DIR__.'/includes/delivery.php';
 $pdo = get_pdo();
 
 /* ---------- Helpers (fallbacks) ---------- */
@@ -9,7 +10,8 @@ if (!function_exists('money_bd')) { function money_bd($n){ $n=(float)$n; $n=roun
 if (!function_exists('bn_digits')) { function bn_digits($s){ return strtr((string)$s, ['0'=>'০','1'=>'১','2'=>'২','3'=>'৩','4'=>'৪','5'=>'৫','6'=>'৬','7'=>'৭','8'=>'৮','9'=>'৯']); } }
 if (!function_exists('dateBD')) {
     function dateBD($ts){
-        return bn_digits(date('d M, Y g:i A', is_numeric($ts)? (int)$ts : strtotime((string)$ts)));
+        /* ইংরেজি অঙ্ক — সাইটের বাকি অংশের মতো; বাংলা অঙ্ক ছোট আকারে (১/৬, ৪/৮) গুলিয়ে যায় */
+        return date('d M Y, g:i A', is_numeric($ts)? (int)$ts : strtotime((string)$ts));
     }
 }
 
@@ -66,6 +68,7 @@ if ($o) {
     foreach ($items as $r) { $calcSub += ((float)($r['price'] ?? 0)) * ((int)($r['qty'] ?? 0)); }
     $subtotal = isset($o['subtotal']) && $o['subtotal']!==null ? (float)$o['subtotal'] : $calcSub;
     $shipping = isset($o['shipping_fee']) ? (float)$o['shipping_fee'] : 0.0;
+    $discount = (float)($o['discount'] ?? 0);
     $total    = isset($o['total']) ? (float)$o['total'] : ($subtotal + $shipping);
     $progress = statusProgress($o['status'] ?? '');
     [$stText, $stClass] = statusBadgeInfo($o['status'] ?? '');
@@ -93,6 +96,10 @@ include __DIR__.'/includes/partials_header.php';
   a.btn.ghost{ background:transparent; color:#4338ca; border-color:#c7d2fe; }
   a.btn:hover{ filter:saturate(1.05); transform: translateY(-1px); transition: all .2s ease; }
   .icon{ font-style:normal; }
+  #odv .disc-val{ color:#2e7d32; font-weight:700; }
+  #odv .table td.right, #odv .table th.right, #odv .totals-mobile .value, .mini-dl dd{ font-variant-numeric: tabular-nums; }
+  #odv .table td.right{ font-weight:500; font-size:.95rem; }
+  .topbar .actions .btn i{ font-size:.9em; }
 
   #odv{ max-width: 980px; margin: 28px auto; padding: 0 14px; }
   .topbar{
@@ -237,7 +244,7 @@ include __DIR__.'/includes/partials_header.php';
     <div class="topbar">
       <h2>অর্ডার বিস্তারিত: #<?php echo h($o['order_code'] ?? $o['id']); ?></h2>
       <div class="actions">
-        <a href="track_orders.php" class="btn ghost"><span class="icon">📦</span> সব অর্ডার</a>
+        <a href="track_orders.php" class="btn ghost"><i class="fa-solid fa-box-open" aria-hidden="true"></i> সব অর্ডার</a>
       </div>
     </div>
 
@@ -258,8 +265,9 @@ include __DIR__.'/includes/partials_header.php';
         <h3>অর্ডার সারসংক্ষেপ</h3>
         <dl class="mini-dl">
           <dt>স্ট্যাটাস</dt><dd><span class="<?php echo h($stClass); ?>"><?php echo h($stText); ?></span></dd>
-          <dt>শিপিং এরিয়া</dt><dd><?php echo h($o['shipping_area'] ?? ''); ?></dd>
+          <dt>শিপিং এরিয়া</dt><dd><?php echo h(dl_order_area_label($o)); ?></dd>
           <dt>ডেলিভারি চার্জ</dt><dd><?php echo money_bd($shipping); ?></dd>
+          <?php if ($discount > 0): ?><dt>ডিসকাউন্ট</dt><dd class="disc-val">&minus;<?php echo money_bd($discount); ?></dd><?php endif; ?>
           <dt>সাবটোটাল</dt><dd><?php echo money_bd($subtotal); ?></dd>
           <dt style="font-weight:700;">মোট</dt><dd class="total-strong"><?php echo money_bd($total); ?></dd>
           <dt>পেমেন্ট পদ্ধতি</dt><dd><?php echo h(payment_method_label($o['payment_method'] ?? '')); ?></dd>
@@ -308,7 +316,7 @@ include __DIR__.'/includes/partials_header.php';
             <tr>
               <td data-label="পণ্য"><?php echo h($r['pname'] ?? ''); ?></td>
               <td data-label="দাম" class="right"><?php echo money_bd($price); ?></td>
-              <td data-label="পরিমাণ" class="right"><?php echo bn_digits($qty); ?></td>
+              <td data-label="পরিমাণ" class="right"><?php echo (int)$qty; ?></td>
               <td data-label="লাইন টোটাল" class="right"><?php echo money_bd($line); ?></td>
             </tr>
           <?php endforeach; ?>
@@ -325,6 +333,12 @@ include __DIR__.'/includes/partials_header.php';
               <th colspan="3" class="right">ডেলিভারি চার্জ</th>
               <td class="right"><?php echo money_bd($shipping); ?></td>
             </tr>
+            <?php if ($discount > 0): ?>
+            <tr>
+              <th colspan="3" class="right">ডিসকাউন্ট</th>
+              <td class="right disc-val">&minus;<?php echo money_bd($discount); ?></td>
+            </tr>
+            <?php endif; ?>
             <tr>
               <th colspan="3" class="right"><strong>মোট</strong></th>
               <td class="right"><strong><?php echo money_bd($total); ?></strong></td>
@@ -343,6 +357,12 @@ include __DIR__.'/includes/partials_header.php';
           <div class="label">ডেলিভারি চার্জ</div>
           <div class="value"><?php echo money_bd($shipping); ?></div>
         </div>
+        <?php if ($discount > 0): ?>
+        <div class="row">
+          <div class="label">ডিসকাউন্ট</div>
+          <div class="value disc-val">&minus;<?php echo money_bd($discount); ?></div>
+        </div>
+        <?php endif; ?>
         <div class="row total">
           <div class="label"><strong>মোট</strong></div>
           <div class="value"><strong><?php echo money_bd($total); ?></strong></div>

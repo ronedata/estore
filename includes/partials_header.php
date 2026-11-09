@@ -26,7 +26,7 @@ $currentPage = basename($_SERVER['PHP_SELF'] ?? 'index.php');
 $pageTitle = isset($pageTitle) && $pageTitle !== '' ? $pageTitle : '';
 $cartCount = 0;
 if (!empty($_SESSION['cart']) && is_array($_SESSION['cart'])) {
-  foreach ($_SESSION['cart'] as $q) { $cartCount += (int)$q; }
+  foreach ($_SESSION['cart'] as $q) { if ((int)$q > 0) $cartCount++; } /* ব্যাজ = আলাদা পণ্যের সংখ্যা (পরিমাণের যোগফল নয়) */
 }
 ?>
 <!doctype html>
@@ -53,6 +53,11 @@ if (!empty($_SESSION['cart']) && is_array($_SESSION['cart'])) {
   </style>
 </head>
 <body class="mfeex-theme">
+<?php
+require_once __DIR__.'/announcements.php';
+ann_render_bar($pdo_h);
+?>
+<script src="<?php echo BASE_URL; ?>/assets/js/announcements.js"></script>
 
 <!-- ===== Header ===== -->
 <header class="main-header">

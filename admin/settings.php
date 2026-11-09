@@ -132,34 +132,20 @@ if ($__flash):
       </div>
 
       <div class="col-12"><hr class="my-2"></div>
-      <div class="col-12"><div class="form-section-title">হোম কনটেন্ট</div></div>
-
-      <div class="col-12 col-lg-6">
-        <label class="form-label">হোম পেজ শিরোনাম (home_heading)</label>
-        <input class="form-control" name="home_heading" value="<?=h(s('home_heading'))?>">
-      </div>
-
-      <div class="col-12 col-lg-6">
-        <label class="form-label">হোম নোটিস (home_notice)</label>
-        <input class="form-control" name="home_notice" value="<?=h(s('home_notice'))?>">
-      </div>
+      <div class="col-12"><div class="form-section-title">COD নোট</div></div>
 
       <div class="col-12">
-        <label class="form-label">COD নোট (cod_note)</label>
+        <label class="form-label">চেকআউট পেজে ক্রেতাকে দেখানো নোট (cod_note)</label>
         <textarea class="form-control" name="cod_note" rows="2" placeholder="সারা দেশে ক্যাশ অন ডেলিভারি..."><?=h(s('cod_note'))?></textarea>
       </div>
 
       <div class="col-12"><hr class="my-2"></div>
       <div class="col-12"><div class="form-section-title">ডেলিভারি চার্জ</div></div>
-
-      <div class="col-6 col-lg-3">
-        <label class="form-label">ঢাকা (delivery_dhaka)</label>
-        <input type="number" inputmode="numeric" class="form-control" name="delivery_dhaka" value="<?=h(s('delivery_dhaka','60'))?>">
-      </div>
-
-      <div class="col-6 col-lg-3">
-        <label class="form-label">জাতীয় (delivery_nationwide)</label>
-        <input type="number" inputmode="numeric" class="form-control" name="delivery_nationwide" value="<?=h(s('delivery_nationwide','120'))?>">
+      <div class="col-12">
+        <div class="alert alert-light border small mb-0">
+          ডেলিভারি চার্জ এখন জেলা অনুযায়ী ঠিক হয়। গ্লোবাল চার্জ ও প্রতিটি জেলার চার্জ
+          <a href="delivery.php"><strong>ডেলিভারি চার্জ</strong></a> মেনু থেকে ঠিক করুন।
+        </div>
       </div>
 
       <div class="col-12"><hr class="my-2"></div>

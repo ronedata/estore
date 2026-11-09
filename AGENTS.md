@@ -69,8 +69,41 @@
 | `schema_v5.php` | `contact_messages` টেবিল |
 | `schema_v6.php` | `sliders.show_text` (টেক্সট ওভারলে টগল, default 0) |
 | `schema_v7.php` | `home_sections` + `home_section_products` টেবিল, `manage_home_sections` পারমিশন, বিদ্যমান Featured/New Arrivals সিড (`is_featured`/`is_new_arrival` থেকে কপি) |
+| `schema_v8.php` | `announcements` টেবিল (বার/পপআপ), `manage_announcements` পারমিশন |
+| `schema_v10.php` | `orders.discount` (DECIMAL, ডিফল্ট ০), `discount_note`, `discount_by` |
+| `schema_v9.php` | `delivery_districts` (৬৪ জেলা সিড, `fee` NULL-able), `orders.shipping_district`, `settings.delivery_global`, `manage_delivery` পারমিশন |
 
 চিহ্ন: `settings.schema_v2_at` … `schema_v7_at` (একবার চলে, দ্বিতীয়বার কিছু করে না)।
+
+### ডেলিভারি চার্জ নিয়ম
+- `delivery_districts.fee`: **NULL (ফাঁকা) = গ্লোবাল** (`settings.delivery_global`), **0 = ওই জেলায় ফ্রি**; দুটি আলাদা — `''` কে 0 বানাবেন না
+- সব পণ্যে `free` ট্যাগ থাকলে জেলা যাই হোক ০ (সার্ভারেই হিসাব, ক্লায়েন্টের ফ্ল্যাগ/ফি বিশ্বাস করা হয় না)
+- `orders.shipping_area` ENUM **অক্ষত**; `shipping_district` (বাংলা নাম) আলাদা কলাম; `shipping_area` নিজে ভরে (ঢাকা জেলা→`dhaka`, বাকি→`nationwide`)
+- পুরোনো ক্যাশ-করা চেকআউট (`district_id` নেই) → `shipping_area=dhaka` হলে ঢাকা জেলা, নইলে গ্লোবাল; `district_id` পাঠিয়ে অবৈধ হলে অর্ডার বাতিল
+- চেকআউটের জেলা বাছাই **খোঁজা-যোগ্য combobox** (`#cDistrictBtn` + প্যানেল): বাংলা/English/পুরোনো বানান (`dl_aliases()`: chittagong, comilla, barisal, jessore, bogra…); ডেস্কটপে ফিল্ডের নিচে ড্রপডাউন, ≤৬৪০px-এ ফুল-স্ক্রিন শিট (সার্চ বক্স ওপরে, ফন্ট ১৬px)। আসল `<select name=district_id>` লুকানো থাকে (ফর্মে জমা এটাই দেয়); সার্ভারের HTML-এ `required` থাকে, JS চললে সরিয়ে নিজস্ব যাচাই (`districtField.invalid` + লাল হিন্ট)। JS না চললে সাধারণ select-ই কাজ করে। প্যানেল `<body>`-তে বসে (`position:fixed`), যাতে কার্ডের transform/overflow-এ না কাটে
+- জেলার টেবিল খালি/অনুপস্থিত হলে চেকআউটে জেলা-ফিল্ড বাদ, অর্ডার গ্লোবাল চার্জে চলে (আটকায় না)
+- মাইগ্রেশনে আগের আচরণ হুবহু: ঢাকা জেলা = পুরোনো `delivery_dhaka`, গ্লোবাল = পুরোনো `delivery_nationwide`; পুরোনো দুই settings কী ডাটাবেসে পড়ে আছে, আর ব্যবহৃত নয়
+- উপজেলা পরে যোগ হবে: `delivery_districts.id`-কে ভিত্তি করে আলাদা `delivery_upazilas` টেবিল
+
+### প্রিন্ট (ইনভয়েস) নিয়ম
+- `admin/order_print.php`-এ কার্ড দুটি `col-12 col-sm-6` (আগে `col-lg-6`: প্রিন্টের পাতা ≈৭৯৪px < ৯৯২px, তাই প্রিন্টে নিচে নিচে চলে যেত); প্রিন্টে `@media print`-এ সবসময় পাশাপাশি (`calc(50% - 6px)`, gutter ০ — নইলে Bootstrap `row`-এর ঋণাত্মক margin কনটেন্টের বাইরে ঠেলে)। `@page{size:A4;margin:12mm}`
+- প্রিন্ট/ইনভয়েসে **bootstrap `lg`/`xl` breakpoint ভরসা করবেন না** — প্রিন্টের পাতার চওড়া ছোট ধরা পড়ে; `sm` বা সরাসরি `@media print` ব্যবহার করুন
+
+### অর্ডার ডিসকাউন্ট নিয়ম
+- মোট = সাবটোটাল − ডিসকাউন্ট + ডেলিভারি; `orders.total` আগের মতোই **নিট** সংখ্যা, তাই ড্যাশবোর্ড/রিপোর্টের আয় নিজে ঠিক থাকে
+- অ্যাডমিন অর্ডার এডিটে ৳ (টাকা) বা % (শতাংশ) দেয়; **শতাংশ দিলে টাকার অঙ্কই জমা হয়** (শতাংশ নয়); পরে পণ্য/পরিমাণ বদলালে টাকা একই থাকে, সাবটোটালের বেশি হলে সাবটোটালে ছাঁটা হয় (বার্তা সহ)
+- সার্ভারে আবার হিসাব (`od_resolve()`); JS-এর মান বিশ্বাস করা হয় না; ঋণাত্মক/অক্ষর/অ্যারে/১০০%-এর বেশি/১ কোটির বেশি বাতিল
+- `discount_by` = যে অ্যাডমিন টাকার অঙ্ক বদলিয়েছে (নতুন বা বদলালে); `discount_note` সর্বোচ্চ ১৬০ অক্ষর; ডিসকাউন্ট ০ হলে দুটোই খালি (NULL)
+- ক্রেতার পেজে (`single_order_details.php`) শুধু টাকার অঙ্ক ("ডিসকাউন্ট −৳100"); **কারণ ও দাতার নাম দেখায় না** — অ্যাডমিন order_view/print-এ দেখায়
+- "Update Price" এখন শিপিং ফিও সংরক্ষণ করে (আগে শুধু সাবটোটাল/মোট লিখত, ফি লিখত না)
+- কার্ট-ব্যাজ (`#cartCount`, `#bnCartCount`) = **আলাদা পণ্যের সংখ্যা**, পরিমাণের যোগফল নয় (`partials_header/footer`, `cart_count.php`, `cart_add.php`, `cart_remove.php`, `cart.php` JS একই নিয়মে)
+
+### কার্ট ও চেকআউটের নিয়ম
+- কার্টের `+`/`−`/ইনপুট বদলালে ৩৫০ms পর `cart_update.php`-এ নিজে সেভ (fetch, `redirect:'manual'`); "চেকআউট করুন" একটি **submit বাটন** (`name=next value=checkout.php`) — আগে সাধারণ লিংক ছিল, তাই "আপডেট" না চাপলে সার্ভারে পুরোনো পরিমাণ (১) থেকে যেত
+- **ফ্রন্ট-সাইটের সব সংখ্যা ইংরেজি অঙ্কে** (টাকা, পরিমাণ, মোবাইল, তারিখ — `dateBD()` = `09 Nov 2026, 4:26 PM`)। সাইটের ফন্টে বাংলা অঙ্ক ছোট আকারে গুলিয়ে যায় (`১`/`৬`, `৪`/`৮`) আর পাশাপাশি দুই রকম অঙ্ক অমিল দেখায়। এমোজি (📦) লিখবেন না — আলাদা ফলব্যাক ফন্ট (Segoe UI Emoji) আসে; Font Awesome আইকন ব্যবহার করুন
+- কার্টের সারিতে **ইউনিট-দাম** (`.cr-price` + "প্রতিটি") ও আলাদা **লাইন-মোট** (`.cr-line`, ডানে); `+`/`−`-এ লাইন-মোট, সাবটোটাল ও হেডার/bottom-nav ব্যাজ (`#cartCount`, `#bnCartCount`) রিলোড ছাড়াই বদলায়; সেভের পর `refreshCartCount()` সার্ভার থেকে সত্য মান আনে। ব্যাজ এখন **মোট অংশ** (পরিমাণের যোগফল), `cart_count.php`/`partials_header.php` একই নিয়মে
+- চেকআউটের সংখ্যা **ইংরেজি অঙ্কে** (`bn_money()`/JS `moneyBD()` = `number_format`/`en-US`), কার্ট ও পণ্য পেজের মতো। বাংলা অঙ্ক (`১২৩`) ও আরবি বিভাজক `٬` ব্যবহার করবেন না — সাইটের ফন্টে (Poppins/Hind Siliguri) `٬` নেই, ব্রাউজার Times New Roman/Segoe UI থেকে আলাদা গ্লিফ এনে লেখা ভাঙা দেখায়
+- টেস্ট স্ক্রিপ্ট ডাটাবেসের মান বদলালে **শুরুর মান snapshot করে শেষে ফেরাতে হয়**; "আগে এটা ছিল" ভেবে হাতে ডিফল্ট বসাবেন না (ব্যবহারকারী নিজেও লোকালে সেটিংস বদলান)
 
 ### হোম সেকশন নিয়ম
 - সর্বোচ্চ **৮**, ন্যূনতম **২** সেকশন (`HS_MAX`/`HS_MIN`); মোছা/বন্ধ করা সার্ভারে ট্রানজাকশনের ভেতরে আটকানো হয়
@@ -115,6 +148,11 @@ home_sections: 2   home_section_products: 28 (Featured 7 + New Arrivals 21)
 | সিকিউরিটি রিপোর্ট | `admin/security.php` |
 | Page Views রিপোর্ট | `admin/page_views.php` (পারমিশন `view_page_views`) |
 | হোম সেকশন ম্যানেজার | `admin/home_sections.php`, `admin/home_section_form.php`, helper `includes/home_sections.php` (পারমিশন `manage_home_sections`) |
+| ডেলিভারি চার্জ (জেলা-ভিত্তিক) | `admin/delivery.php`, helper `includes/delivery.php` (`dl_quote()` — একমাত্র হিসাব), `checkout.php` (জেলা ড্রপডাউন), `place_order.php` (আসল হিসাব), অর্ডার ভিউ: `dl_order_area_label()` (পারমিশন `manage_delivery`) |
+| অর্ডার ডিসকাউন্ট (অ্যাডমিন) | `admin/order_edit.php` (ডিসকাউন্ট ঘর), helper `includes/order_discount.php` (`od_resolve()`), ভিউ: `order_view.php`/`order_print.php`/`single_order_details.php` (পারমিশন: বিদ্যমান `manage_orders`) |
+| জেলা বাছাই-বক্স (খোঁজা-যোগ্য) | শেয়ার করা `assets/js/district-picker.js` (`DistrictPicker.enhance()`) — চেকআউট ও `admin/order_edit.php` দুই জায়গায়; CSS স্ক্রিপ্টই নিজে ইনজেক্ট করে |
+| COD নোট (`settings.cod_note`) | `admin/settings.php`-এ সম্পাদনা, `checkout.php`-এ পেমেন্টের নিচে দেখায়। `home_heading`/`home_notice` সরানো হয়েছে (ঘোষণা মেনু ব্যবহার করুন) |
+| ঘোষণা (বার + পপআপ) | `admin/announcements.php`, `admin/announcement_form.php`, helper `includes/announcements.php`, ফ্রন্ট `partials_header.php` (বার, সব পেজ) / `partials_footer.php` (পপআপ, শুধু `index.php`), `assets/js/announcements.js`, CSS `.ann-*` (`components.css` শেষে) (পারমিশন `manage_announcements`) |
 | প্রোডাক্ট ফর্মের সেকশন টগল | `admin/product_form.php`, `admin/product_add_for_mobile.php` (`section_ids[]`) |
 | সেকশনের "সব দেখুন" | `shop.php?section=ID` |
 
@@ -166,7 +204,6 @@ home_sections: 2   home_section_products: 28 (Featured 7 + New Arrivals 21)
 | কাজ | নোট |
 |---|---|
 | CSS/JS ক্যাশ ভার্সন `?v=` (ফাইলের mtime থেকে) | আপডেটের পর পুরোনো CSS দেখানো বন্ধ হবে; ছোট কাজ |
-| `git init` (`.gitignore`-এ `live.config.php`, `uploads/`, `logs/`, `database/*.sql`) | এখন ভার্সন কন্ট্রোল নেই, হাতে ব্যাকআপ কপি রাখতে হয় |
 | `tools/compare_configs.php` ফিরিয়ে আনা | দুই config-এ ১৩ লাইন পার্থক্য, হাতে মেলানো হয় |
 | `product.php` (37KB) বনাম `product_details.php` (21KB) যাচাই | একটি সম্ভবত পুরোনো/ডুপ্লিকেট — এখনও যাচাই হয়নি |
 | manual সেকশনে পণ্যের ক্রম (`home_section_products.sort_order` কলাম আছে, UI নেই) | নতুন পণ্য আগে আসে |
@@ -204,7 +241,17 @@ home_sections: 2   home_section_products: 28 (Featured 7 + New Arrivals 21)
 | `node tools/verify_search_suggest.js <url>` | লাইভ সার্চ সাজেশন ৪১টি চেক (দৃশ্যমানতা, পজিশন, কীবোর্ড) |
 | `node tools/verify_review_flow.js <url> [pid]` | রিভিউ ফর্ম→সাবমিট→flash→ডুপ্লিকেট ১৪টি চেক (`CUSTOMER_COOKIE` লাগে) |
 | `node tools/verify_review_moderation.js <url>` | Admin approve/reject/delete ১৩টি চেক (`ADMIN_COOKIE` লাগে) |
-| `node tools/verify_permissions_ui.js <url>` | পারমিশন↔মেনু নাম মিল ১৪টি চেক, পারমিশন সংখ্যা ১৫ ধরে (`ADMIN_COOKIE` লাগে) |
+| `node tools/verify_permissions_ui.js <url>` | পারমিশন↔মেনু নাম মিল ১৪টি চেক, পারমিশন সংখ্যা ১৭ ধরে (`ADMIN_COOKIE` লাগে) |
+| `node tools/verify_order_print.js <url>` | admin/order_print: স্ক্রিন (১৩২৬/৮০০/৩৯০px) ও প্রিন্ট-মিডিয়া (A4 ৭৯৪/৭০০/৬০০px)-এ কাস্টমার+অর্ডার কার্ড পাশাপাশি, ইংরেজি অঙ্কের তারিখ, আসল PDF ১ পাতা ২৯টি চেক (অস্থায়ী অ্যাডমিন সেশন; ডাটাবেস বদলায় না) |
+| `php tools/test_order_discount.php` | ডিসকাউন্ট লজিক ৪৬টি চেক (সংখ্যা যাচাই, টাকা/শতাংশ, সাবটোটালে ছাঁটা, মোট, কারণ-লেখা, মাইগ্রেশন; ডাটাবেস বদলায় না) |
+| `node tools/verify_discount.js <url>` | অ্যাডমিন ডিসকাউন্ট end-to-end ৪৩টি চেক (টেস্ট অর্ডার বানায়: টাকা/শতাংশ, Update/Save, ভুল-জাল মান, CSRF, ক্রেতা/অ্যাডমিন/প্রিন্ট পেজ, তুলে নেওয়া; শেষে মুছে স্টক ফেরায়) |
+| `node tools/verify_order_edit_ui.js <url>` | admin/order_edit-এর পরিমাণ-বক্স, সংখ্যা ইংরেজি অঙ্কে, জেলা খোঁজা-বাছাই (খোঁজা, ক্লিকে ফি বসা, জমায় district_id) ৪২টি চেক (অস্থায়ী অ্যাডমিন সেশন নিজে বানায়-মোছে; Save চাপে না) |
+| `node tools/verify_order_font.js <url>` | অর্ডার ডিটেইলস ও ট্র্যাকিং পেজে বাংলা অঙ্ক/এমোজি/ফলব্যাক ফন্ট নেই, তারিখ-পরিমাণ ইংরেজি অঙ্কে, overflow নেই ২০টি চেক (ডাটাবেস বদলায় না) |
+| `node tools/verify_cart_qty.js <url>` | কার্ট পরিমাণ স্বয়ংক্রিয় সেভ, ব্যাজ = আলাদা পণ্যের সংখ্যা, "চেকআউট করুন" বাটনে নতুন পরিমাণ, স্টক সীমা, CSRF, চেকআউট সামারির অঙ্ক/ফন্ট (Times/Segoe ফলব্যাক নেই), কার্ট সারির ইউনিট-দাম/লাইভ লাইন-মোট হেডার ব্যাজ ও "সরান" বাটন ৫৩টি চেক (ডাটাবেস বদলায় না) |
+| `php tools/test_delivery.php` | ডেলিভারি লজিক ৬৫টি চেক (৬৪ জেলা, ফাঁকা=গ্লোবাল/0=ফ্রি, যাচাই, সব-অথবা-কিছুই-না সেভ; শেষে চার্জ আগের অবস্থায় ফেরায়) |
+| `node tools/verify_delivery.js <url>` | চেকআউট জেলা→চার্জ, সত্যিকারের অর্ডার, জাল ফিল্ড/অবৈধ জেলা, পুরোনো ক্যাশ-ফর্ম, অ্যাডমিন ফিল্টার/বাল্ক/সেভ, অর্ডার এডিট, আলাদা গ্লোবাল সেভ, জেলা খোঁজা (combobox) ১০৫টি চেক (mysql CLI+php লাগে; টেস্ট অর্ডার মুছে স্টক ও চার্জ ফেরায়) |
+| `php tools/test_announcements.php` | ঘোষণা লজিক ৫৩টি চেক (যাচাই, লিংক-গার্ড, সময়সীমা, একটিই দেখানো, XSS escape; নিজে পরিষ্কার করে) |
+| `node tools/verify_announcements.js <url>` | বার/পপআপ ব্রাউজার টেস্ট ৫৬টি চেক (২ প্রস্থ: delay, ✕/Esc/ব্যাকড্রপ, reshow never/session/days/always, শুধু হোমে পপআপ; mysql CLI লাগে, নিজে পরিষ্কার করে) |
 | `node tools/measure_payment_section.js <url>` | নির্দিষ্ট section-এর box/padding/anchor chain ডায়াগনস্টিক |
 | `php tools/test_all_image_sizes.php` | ৩৫টি ইমেজ কেস |
 | `php tools/test_image_processor.php` | ৭টি প্রসেসিং কেস |
@@ -306,5 +353,5 @@ https://yoursite.com/assets/css/theme.css   → 200
 - ডেটাবেসে টেস্ট ডেটা তৈরি করলে **অবশ্যই মুছে ফেলুন**
 - `includes/config.php` ও `includes/live.config.php` সবসময় সিঙ্ক রাখুন
 - নতুন admin মেনু যোগ করলে ৪ জায়গা: `admin/header.php`, `permission_labels.php`, `auth_functions.php` (`get_first_allowed_page`), এবং মাইগ্রেশনে পারমিশন insert
-- নতুন পারমিশন যোগ হলে `tools/verify_permissions_ui.js`-এর সংখ্যা (এখন ১৫) বদলাতে হবে
+- নতুন পারমিশন যোগ হলে `tools/verify_permissions_ui.js`-এর সংখ্যা (এখন ১৭) বদলাতে হবে
 - বড় পরিবর্তনের আগে ফাইলের ব্যাকআপ কপি রাখুন (প্রজেক্ট git-এ নেই); এবারেরটি `C:\laragon\wwwstore_backup_pre_homesections\`

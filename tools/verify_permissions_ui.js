@@ -86,7 +86,7 @@ function send(ws, id, method, params = {}) {
     if (page.loggedOut) { bad('অ্যাডমিন লগইন নেই'); ws.close(); chrome.kill(); process.exit(1); }
 
     /পারমিশন/i.test(page.title) ? ok(`শিরোনাম: "${page.title.trim()}"`) : bad(`শিরোনাম: "${page.title}"`);
-    page.rows.length === 15 ? ok('১৫টি পারমিশন দেখাচ্ছে') : bad(`পারমিশন ${page.rows.length}টি`);
+    page.rows.length === 17 ? ok('১৭টি পারমিশন দেখাচ্ছে') : bad(`পারমিশন ${page.rows.length}টি`);
     page.groups.length >= 4 ? ok(`গ্রুপ: ${page.groups.join(' · ')}`) : bad(`গ্রুপ ${page.groups.length}টি`);
     !page.unmappedWarn ? ok('সব পারমিশন ম্যাপ করা (unmapped warning নেই)') : bad('কিছু পারমিশন unmapped');
     !page.overflow ? ok('horizontal overflow নেই') : bad('overflow আছে');
@@ -117,7 +117,7 @@ function send(ws, id, method, params = {}) {
       clearAll: !!document.getElementById('permClearAll')
     }))()`);
 
-    role.checks === 15 ? ok('role_form-এ ১৫টি চেকবক্স') : bad(`চেকবক্স ${role.checks}টি`);
+    role.checks === 17 ? ok('role_form-এ ১৭টি চেকবক্স') : bad(`চেকবক্স ${role.checks}টি`);
     role.groups.length >= 4 ? ok(`role_form গ্রুপ: ${role.groups.join(' · ')}`) : bad(`গ্রুপ ${role.groups.length}টি`);
     role.selectAll && role.clearAll ? ok('"সব নির্বাচন" ও "সব বাদ দিন" বাটন আছে') : bad('বাল্ক বাটন নেই');
     const bangla = role.labels.filter(l => /[\u0980-\u09FF]/.test(l)).length;
@@ -134,7 +134,7 @@ function send(ws, id, method, params = {}) {
       return { afterClear: a, afterSelect: b };
     })()`);
     bulk.afterClear === 0 ? ok('"সব বাদ দিন" কাজ করে') : bad(`সব বাদ দেওয়ার পরও ${bulk.afterClear} checked`);
-    bulk.afterSelect === 15 ? ok('"সব নির্বাচন" কাজ করে') : bad(`সব নির্বাচনের পর ${bulk.afterSelect} checked`);
+    bulk.afterSelect === 17 ? ok('"সব নির্বাচন" কাজ করে') : bad(`সব নির্বাচনের পর ${bulk.afterSelect} checked`);
 
     // permission_form প্রিভিউ
     await send(ws, id++, 'Page.navigate', { url: `${BASE}/admin/permission_form.php?id=11` });

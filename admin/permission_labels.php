@@ -18,6 +18,8 @@ if (!function_exists('permission_label')) {
       'manage_categories'    => ['label' => 'ক্যাটেগরি',             'icon' => 'fa-tags',              'group' => 'ক্যাটালগ'],
       'manage_sliders'       => ['label' => 'স্লাইডার',              'icon' => 'fa-images',            'group' => 'ক্যাটালগ'],
       'manage_home_sections' => ['label' => 'হোম সেকশন',             'icon' => 'fa-table-cells-large', 'group' => 'ক্যাটালগ'],
+      'manage_announcements' => ['label' => 'ঘোষণা',                  'icon' => 'fa-bullhorn',          'group' => 'ক্যাটালগ'],
+      'manage_delivery'      => ['label' => 'ডেলিভারি চার্জ',          'icon' => 'fa-truck-fast',        'group' => 'বিক্রয়'],
       'manage_reviews'       => ['label' => 'রিভিউ',                'icon' => 'fa-star-half-stroke',  'group' => 'কনটেন্ট'],
       'manage_customers'     => ['label' => 'কাস্টমার',              'icon' => 'fa-user-group',        'group' => 'কনটেন্ট'],
       'manage_pages'         => ['label' => 'পেজ',                   'icon' => 'fa-file-lines',        'group' => 'কনটেন্ট'],

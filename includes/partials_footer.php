@@ -24,7 +24,7 @@ $waDigits   = preg_replace('/\D+/', '', $wa);
 $currentPage = basename($_SERVER['PHP_SELF'] ?? '');
 $cartCount = 0;
 if (!empty($_SESSION['cart']) && is_array($_SESSION['cart'])) {
-  foreach ($_SESSION['cart'] as $q) { $cartCount += (int)$q; }
+  foreach ($_SESSION['cart'] as $q) { if ((int)$q > 0) $cartCount++; } /* ব্যাজ = আলাদা পণ্যের সংখ্যা (পরিমাণের যোগফল নয়) */
 }
 function nav_active(array $pages, string $current): string {
   return in_array($current, $pages, true) ? 'active' : '';
@@ -138,6 +138,7 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 });
 </script>
+<?php if (($currentPage ?? '') === 'index.php' && function_exists('ann_render_popup')) { ann_render_popup(get_pdo()); } ?>
 <script src="<?php echo BASE_URL; ?>/assets/js/home.js"></script>
 </body>
 </html>

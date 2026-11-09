@@ -64,7 +64,16 @@ function render_pagination(int $current_page, int $total_pages, array $params = 
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Admin - <?php echo h(defined('APP_NAME') ? APP_NAME : 'Shop'); ?></title>
-  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+  <?php
+    $adminFavicon = '';
+    try {
+      $stFav = get_pdo()->prepare("SELECT value FROM settings WHERE `key`='store_favicon' LIMIT 1");
+      $stFav->execute();
+      $adminFavicon = img_url((string)$stFav->fetchColumn(), '');
+    } catch (Throwable $e) { $adminFavicon = ''; }
+    if ($adminFavicon === '') $adminFavicon = BASE_URL . '/assets/favicon.ico';
+  ?>
+  <link rel="icon" href="<?php echo h($adminFavicon); ?>">
 
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -218,6 +227,14 @@ function render_pagination(int $current_page, int $total_pages, array $params = 
         </a>
       <?php endif; ?>
 
+      <?php if (can('manage_announcements')): ?>
+        <a class="<?php echo is_active(['announcements.php','announcement_form.php']); ?>"
+           href="<?php echo BASE_URL; ?>/admin/announcements.php">
+          <i class="fa-solid fa-bullhorn"></i>
+          <span>ঘোষণা</span>
+        </a>
+      <?php endif; ?>
+
       <?php if (can('manage_reviews')): ?>
         <a class="<?php echo is_active('reviews.php'); ?>"
            href="<?php echo BASE_URL; ?>/admin/reviews.php">
@@ -292,6 +309,14 @@ function render_pagination(int $current_page, int $total_pages, array $params = 
            href="<?php echo BASE_URL; ?>/admin/payments.php">
           <i class="fa-solid fa-credit-card"></i>
           <span>পেমেন্ট</span>
+        </a>
+      <?php endif; ?>
+
+      <?php if (can('manage_delivery')): ?>
+        <a class="<?php echo is_active('delivery.php'); ?>"
+           href="<?php echo BASE_URL; ?>/admin/delivery.php">
+          <i class="fa-solid fa-truck-fast"></i>
+          <span>ডেলিভারি চার্জ</span>
         </a>
       <?php endif; ?>
       <?php if (can('settings')): ?>

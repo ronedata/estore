@@ -377,4 +377,16 @@ try { ensure_estore_schema_v6(get_pdo()); } catch (Throwable $e) { /* DB unavail
 require_once __DIR__ . '/schema_v7.php';
 try { ensure_estore_schema_v7(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
 
+// ---------- eStore V8 schema (announcements) ----------
+require_once __DIR__ . '/schema_v8.php';
+try { ensure_estore_schema_v8(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
+
+// ---------- eStore V9 schema (delivery_districts, orders.shipping_district) ----------
+require_once __DIR__ . '/schema_v9.php';
+try { ensure_estore_schema_v9(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
+
+// ---------- eStore V10 schema (orders.discount, discount_note, discount_by) ----------
+require_once __DIR__ . '/schema_v10.php';
+try { ensure_estore_schema_v10(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
+
 ?>
