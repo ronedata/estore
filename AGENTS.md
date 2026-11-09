@@ -122,12 +122,13 @@ home_sections: 2   home_section_products: 28 (Featured 7 + New Arrivals 21)
 ```
 
 ### ডেটাবেস ব্যাকআপ
-- লোকাল ডাম্প: `database/database_estore_26-11-05.sql` (v7 টেবিলসহ, ২২ টেবিল); আগেরটি `database_estore_26-11-02.sql`
+- লোকাল ডাম্প: `database/database_estore_26-11-05.sql` (v7 টেবিলসহ, ২২ টেবিল; পুরোনো); আগেরটি `database_estore_26-11-02.sql`
 - নতুন ডাম্প: `mysqldump -uroot --default-character-set=utf8mb4 --single-transaction --add-drop-table estore > database/database_estore_YY-MM-DD.sql`
 - লাইভের ব্যাকআপ আলাদা — phpMyAdmin → Export (আপলোডের আগে নিন)
 - `database/` লাইভে আপলোড করবেন না
 - **GitHub (Public):** https://github.com/ronedata/estore — `live.config.php`, `database/*.sql`, `logs/` গিটে যায় না (`.gitignore`)
-- গিটে একমাত্র ডাম্প: `database/estore_schema_demo.sql` — সব টেবিলের কাঠামো + ডেমো ডেটা; গ্রাহক/অর্ডার/মেসেজ/রিভিউ/অ্যাডমিন/`store_phone`/`store_email` **নেই**। ফাইল বদলালে ব্যক্তিগত তথ্য ঢুকল কি না যাচাই করুন; ইমপোর্ট টেস্ট: অস্থায়ী DB-তে ইমপোর্ট করে টেবিল ২২টি দেখুন
+- গিটে একমাত্র ডাম্প: `database/estore_schema_demo.sql` — সব টেবিলের কাঠামো + ডেমো ডেটা; গ্রাহক/অর্ডার/মেসেজ/রিভিউ/অ্যাডমিন/`store_phone`/`store_email` **নেই**। ফাইল বদলালে ব্যক্তিগত তথ্য ঢুকল কি না যাচাই করুন; ইমপোর্ট টেস্ট: অস্থায়ী DB-তে ইমপোর্ট করে টেবিল ২৪টি দেখুন
+- **ডেমো ডাম্প নতুন করে বানানোর নিয়ম** (নতুন মাইগ্রেশন/টেবিল যোগ হলে): আসল লোকাল DB-তে হাত না দিয়ে (১) অস্থায়ী DB `estore_demo_build`-এ `mysqldump estore | mysql` দিয়ে কপি; (২) সেখানে `TRUNCATE` — customers, orders, order_items, contact_messages, product_reviews, page_views, subscribers, wishlists, admin_users, announcements; `settings`-এ `store_phone`/`store_email` মুছুন; ডেলিভারি ডেমো মান (গ্লোবাল ১২০, ঢাকা ৬০, বাকি NULL); (৩) `mysqldump --skip-comments --skip-add-locks --skip-disable-keys --add-drop-table` + আগের হেডার-কমেন্ট; (৪) খালি অস্থায়ী DB-তে ইমপোর্ট, টেবিল সংখ্যা/পারমিশন/মাইগ্রেশন-চিহ্ন যাচাই, `ensure_estore_schema_vN($pdo, true)` আবার চালিয়ে ডেটা অপরিবর্তিত কি দেখুন; (৫) ফাইলে ফোন (`01[3-9]\d{8}`), ইমেইল, লাইভ ডোমেইন, `$2y$` হ্যাশ, আইপি স্ক্যান; (৬) অস্থায়ী DB মুছুন। বর্তমান ডাম্প: ২৪ টেবিল, ১৪টির ডেটা (পণ্য ২৪, জেলা ৬৪ ইত্যাদি)
 - গিটে পুশের আগে `git diff --cached --name-only | grep -E "live.config|database/.*\.sql|logs/"` চালান (শুধু `estore_schema_demo.sql` থাকা ঠিক)
 
 ---
