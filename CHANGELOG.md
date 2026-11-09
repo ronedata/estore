@@ -1,5 +1,14 @@
 # eStore Changelog
 
+## 2026-11-09 — বাংলা অঙ্ক পরিষ্কার দেখানো (ঘোষণা বার/পপআপ ও সাইটজুড়ে)
+
+- **সমস্যা:** ঘোষণা বারের "১০০০৳+" পড়া যেত না — Hind Siliguri-তে বাংলা `১` ছোট বাঁকা চিহ্ন, `৪/৮`, `১/৬` গুলিয়ে যায়
+- **সিদ্ধান্ত:** লেখা যেমন দেওয়া হবে তেমনই (বাংলা অঙ্কেই) দেখাবে; অঙ্ক ইংরেজিতে বদলানো **হয়নি** (একবার করেছিলাম, বাতিল)। ঠিক করা হয়েছে ফন্ট
+- **ঠিক:** `partials_header.php`-এ Noto Sans Bengali-র শুধু অঙ্কের সাবসেট (~৭KB) + `body` font-family-তে Poppins ও Hind Siliguri-র মাঝে। শুধু বাংলা অঙ্কে বদল, বাকি অক্ষর আগের মতো — সাইটজুড়ে (ফুটারের "১০০% অরিজিনাল", তথ্য-বার ইত্যাদিও)
+- বারের ফন্ট ১৩px → ১৪.৫px; পপআপের লেখা ১৫.৫px/৫০০ ও গাঢ় রং
+- টেস্ট-বাগ ঠিক: `test_announcements.php` আলাদা করে চালানোর জন্য অন্য ঘোষণা নিষ্ক্রিয় করে ফেরাত না (লোকালে আসল ঘোষণা বন্ধ হয়ে যেত) → এখন snapshot-যাচাই; `verify_announcements.js`-ও আসল ঘোষণার অবস্থা ফেরায়
+- বদলেছে: `includes/partials_header.php`, `assets/css/components.css` (`includes/announcements.php` অপরিবর্তিত); টেস্ট ৬০ ও ৬৬টি চেক
+
 ## 2026-11-09 — ডেমো ডাটাবেস ডাম্প হালনাগাদ
 
 - `database/estore_schema_demo.sql`: ২২ → **২৪টি টেবিল** (নতুন `announcements`, `delivery_districts`), `orders`-এ নতুন কলাম (`shipping_district`, `discount`, `discount_note`, `discount_by`), ৬৪ জেলা (ঢাকা ৬০, গ্লোবাল ১২০), নতুন পারমিশন `manage_announcements`/`manage_delivery` (Super Admin-এ যুক্ত), মাইগ্রেশন-চিহ্ন v8–v10

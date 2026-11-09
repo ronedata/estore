@@ -43,6 +43,8 @@ if (!empty($_SESSION['cart']) && is_array($_SESSION['cart'])) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- বাংলা অঙ্ক (০–৯) পরিষ্কার দেখাতে: Hind Siliguri-তে ১/৬, ৪/৮ ছোট লেখায় গুলিয়ে যায়; শুধু অঙ্কের সাবসেট লোড হয় -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&text=%E0%A7%A6%E0%A7%A7%E0%A7%A8%E0%A7%A9%E0%A7%AA%E0%A7%AB%E0%A7%AC%E0%A7%AD%E0%A7%AE%E0%A7%AF&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/theme.css">
   <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/components.css">
@@ -50,6 +52,7 @@ if (!empty($_SESSION['cart']) && is_array($_SESSION['cart'])) {
 
   <style>
     :root{ --primary-purple: <?php echo h($theme_pri); ?>; --brand-blue: <?php echo h($theme_pri); ?>; --accent-orange: <?php echo h($theme_sec); ?>; }
+    body{ font-family:'Poppins','Noto Sans Bengali','Hind Siliguri',system-ui,-apple-system,'Segoe UI',sans-serif; }
   </style>
 </head>
 <body class="mfeex-theme">

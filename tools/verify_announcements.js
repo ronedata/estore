@@ -17,7 +17,13 @@ const bad = (m) => { fail++; console.log('  FAIL  ' + m); };
 const check = (c, m) => (c ? ok(m) : bad(m));
 
 const sql = (q) => execFileSync(MYSQL, ['-uroot', '--default-character-set=utf8mb4', DB], { encoding: 'utf8', input: q + ';\n' });
-const cleanup = () => { try { sql("DELETE FROM announcements WHERE message LIKE '[T]%' OR title LIKE '[T]%'"); } catch (e) {} };
+const REAL = "message NOT LIKE '[T]%' AND IFNULL(title,'') NOT LIKE '[T]%'";
+let snapReal = [];
+const cleanup = () => {
+  try { sql("DELETE FROM announcements WHERE message LIKE '[T]%' OR title LIKE '[T]%'"); } catch (e) {}
+  /* আসল (টেস্ট-নয়) ঘোষণার চালু/বন্ধ অবস্থা ফেরাই */
+  for (const [rid, act] of snapReal) { try { sql(`UPDATE announcements SET active=${act} WHERE id=${rid}`); } catch (e) {} }
+};
 
 function send(ws, id, method, params = {}) {
   return new Promise((resolve, reject) => {
@@ -32,6 +38,7 @@ function send(ws, id, method, params = {}) {
 }
 
 (async () => {
+  snapReal = sql(`SELECT id, active FROM announcements WHERE ${REAL}`).split(/\r?\n/).filter(Boolean).map((l) => l.split('\t'));
   cleanup();
   sql("INSERT INTO announcements(kind,message,link_url,color,closable,reshow,reshow_days,active) VALUES('bar','[T] ঈদ অফার: ১০০০৳+ অর্ডারে ফ্রি ডেলিভারি','shop.php','orange',1,'days',7,1)");
   sql("INSERT INTO announcements(kind,title,message,link_url,btn_label,delay_sec,reshow,reshow_days,color,active) VALUES('popup','[T] ঈদ সেল!','সব পণ্যে ১০% ছাড়','shop.php','এখনই কিনুন',2,'never',7,'green',1)");
@@ -83,6 +90,24 @@ function send(ws, id, method, params = {}) {
       check(!g.hs, 'horizontal overflow নেই');
       check(g.barW >= w - 1 && g.barH >= 30, `বার পুরো প্রস্থে (${g.barW}×${g.barH})`);
       check(g.barBg === 'rgb(255, 112, 67)', 'বারের রং কমলা');
+      const bfs = parseFloat(await ev("getComputedStyle(document.querySelector('#annBar .ann-bar-text')).fontSize"));
+      check(bfs >= 14, `বারের লেখা পড়ার মতো বড় (${bfs}px; আগে ১৩px)`);
+      const barTxt = await ev("document.getElementById('annBar').innerText");
+      check(/১০০০/.test(barTxt), 'বারে বাংলা অঙ্ক যেমন লেখা তেমনই দেখায় ("' + barTxt.trim() + '")');
+      const call = (m, p) => send(ws, id++, m, p);
+      await call('DOM.enable'); await call('CSS.enable');
+      const fontsOf = async (sel) => {
+        const doc = await call('DOM.getDocument', { depth: -1 });
+        const n = await call('DOM.querySelector', { nodeId: doc.root.nodeId, selector: sel });
+        const f = await call('CSS.getPlatformFontsForNode', { nodeId: n.nodeId });
+        return f.fonts.map((x) => x.familyName + ':' + x.glyphCount);
+      };
+      await sleep(600);
+      const bf = await fontsOf('#annBar .ann-bar-text');
+      const digitFont = bf.find((x) => x.startsWith('Noto Sans Bengali'));
+      check(!!digitFont && Number(digitFont.split(':')[1]) >= 4, 'বাংলা অঙ্কে স্পষ্ট ফন্ট Noto Sans Bengali (' + (digitFont || 'নেই') + ' গ্লিফ)');
+      check(bf.some((x) => x.startsWith('Hind Siliguri')), 'বাকি অক্ষর আগের মতো Hind Siliguri-তেই (চেহারা বদলায়নি): ' + bf.join(', '));
+      check(!bf.some((x) => /Times|Arial|Nirmala/i.test(x)), 'ফলব্যাক ফন্ট (Times/Arial/Nirmala) নেই');
       check(g.btn && g.title && g.title.includes('ঈদ সেল'), 'পপআপে শিরোনাম ও বাটন');
       const shot = await send(ws, id++, 'Page.captureScreenshot', { format: 'png' });
       require('fs').writeFileSync(require('os').tmpdir() + `\\ann_${mobile ? 'mobile' : 'desktop'}.png`, Buffer.from(shot.data, 'base64'));
@@ -148,6 +173,7 @@ function send(ws, id, method, params = {}) {
 
       // --- ছবি-ছাড়া/বার-ছাড়া ও নিষ্ক্রিয় ---
       await resetStore(); setPopup("active=0"); setBar("active=0");
+      sql(`UPDATE announcements SET active=0 WHERE ${REAL}`);   /* সাময়িক: আসল ঘোষণাও বন্ধ (শেষে cleanup ফেরায়) */
       await go('/index.php'); await sleep(800);
       check(await ev("!document.getElementById('annBar') && !document.getElementById('annPop')"), 'নিষ্ক্রিয় করলে বার-পপআপ কিছুই আসে না');
       console.log('');
