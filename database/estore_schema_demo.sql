@@ -1,10 +1,8 @@
--- eStore: কাঠামো (সব ২৪টি টেবিল) + ডেমো ডেটা (পণ্য, ক্যাটেগরি, স্লাইডার, পেজ, হোম সেকশন, সেটিংস, জেলা-ভিত্তিক ডেলিভারি চার্জ, রোল/পারমিশন)।
+-- eStore: কাঠামো (সব ২৭টি টেবিল) + ডেমো ডেটা (পণ্য, ক্যাটেগরি, স্লাইডার, পেজ, হোম সেকশন, সেটিংস, জেলা-ভিত্তিক ডেলিভারি চার্জ, রোল/পারমিশন)।
 -- গ্রাহক, অর্ডার, মেসেজ, রিভিউ, অ্যাডমিন ইউজার, page_views, store_phone/store_email বাদ — ব্যক্তিগত তথ্য নেই।
 -- ইমপোর্ট: খালি ডাটাবেসে। সতর্কতা: DROP TABLE IF EXISTS আছে, চালু ডাটাবেসে চালাবেন না।
 -- অ্যাডমিন ইউজার নেই: admin_users-এ নিজে একটি সারি যোগ করুন (password_hash() দিয়ে), role Super Admin।
--- নতুন মাইগ্রেশন (v8 ঘোষণা, v9 ডেলিভারি, v10 ডিসকাউন্ট) এই ডাম্পেই অন্তর্ভুক্ত; ইমপোর্টের পর এগুলো আবার চলে না।
-SET NAMES utf8mb4;
-SET FOREIGN_KEY_CHECKS=0;
+-- নতুন মাইগ্রেশন (v8 ঘোষণা, v9 ডেলিভারি, v10 ডিসকাউন্ট, v11 লগইন সুরক্ষা, v12 অর্ডার গোপন কোড) এই ডাম্পেই অন্তর্ভুক্ত; ইমপোর্টের পর এগুলো আবার চলে না।
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -157,6 +155,36 @@ CREATE TABLE `home_sections` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 INSERT INTO `home_sections` VALUES (1,'Featured Products','আপনার জন্য বাছাই করা সেরা পণ্য','manual',NULL,8,2,1,1,0,'2026-11-05 11:08:05'),(2,'New Arrivals','সদ্য যোগ হওয়া নতুন সংগ্রহ','manual',NULL,8,1,1,1,1,'2026-11-05 11:08:05'),(59,'E.T.C','সাবটাইটেল (ঐচ্ছিক)','manual',NULL,12,3,1,1,0,'2026-11-05 11:17:08');
+DROP TABLE IF EXISTS `login_attempts`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `login_attempts` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `ip` varchar(45) NOT NULL,
+  `username` varchar(100) NOT NULL DEFAULT '',
+  `result` varchar(8) NOT NULL DEFAULT 'fail',
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ip` (`ip`,`result`,`created_at`),
+  KEY `idx_user` (`username`,`result`,`created_at`),
+  KEY `idx_time` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+DROP TABLE IF EXISTS `login_locks`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `login_locks` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `kind` varchar(8) NOT NULL,
+  `subject` varchar(100) NOT NULL,
+  `locked_until` datetime NOT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_subject` (`kind`,`subject`,`locked_until`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 DROP TABLE IF EXISTS `order_items`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -198,8 +226,10 @@ CREATE TABLE `orders` (
   `customer_id` int(11) DEFAULT NULL,
   `stock_deducted` tinyint(1) NOT NULL DEFAULT 0,
   `stock_returned` tinyint(1) NOT NULL DEFAULT 0,
+  `public_token` char(32) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `order_code` (`order_code`)
+  UNIQUE KEY `order_code` (`order_code`),
+  UNIQUE KEY `uq_public_token` (`public_token`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -258,7 +288,7 @@ CREATE TABLE `permissions` (
   `description` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=36 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=39 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 INSERT INTO `permissions` VALUES (1,'view_dashboard','Can view the admin dashboard'),(2,'manage_products','Can add, edit, and delete products'),(3,'manage_products_quick','Can use the quick product add page'),(4,'manage_categories','Can manage product categories'),(5,'manage_orders','Can view and manage orders'),(6,'manage_admin_users','Can manage admin users and roles'),(7,'view_stock_report','Can view the stock report'),(8,'settings','Can change store settings'),(10,'payments','Can manage payments'),(11,'manage_sliders','Can manage hero sliders and side banners'),(12,'manage_reviews','Can moderate product reviews'),(13,'manage_customers','Can view and manage customers'),(14,'manage_pages','Can edit static pages (about, privacy, terms, contact)'),(15,'view_page_views','Can view page views report'),(19,'manage_home_sections','Can manage homepage sections (add, remove, reorder, product count)'),(22,'manage_announcements','Can manage announcement bar and popup'),(27,'manage_delivery','Can manage district-wise delivery charges');
@@ -379,7 +409,7 @@ CREATE TABLE `settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO `settings` VALUES ('animations_enabled','0'),('cod_note','সারা দেশে ক্যাশ অন ডেলিভারি প্রযোজ্য।'),('delivery_dhaka','60'),('delivery_global','120'),('delivery_nationwide','120'),('discount_show_product','0'),('featured_subtitle','আপনার জন্য বাছাই করা সেরা পণ্য'),('featured_title','Featured Products'),('hero_autoplay_ms','2500'),('home_heading','হোম পেজ শিরোনাম'),('home_layout',''),('home_notice','বাংলাদেশের সেরা অনলাইন শপিং প্ল্যাটফর্ম। ক্যাশ অন ডেলিভারি সুবিধা সহ।'),('info1_sub','৩–৫ দিনের মধ্যে'),('info1_title','দ্রুত ডেলিভারি'),('info2_sub','পণ্য হাতে পেয়ে পেমেন্ট'),('info2_title','ক্যাশ অন ডেলিভারি'),('info3_sub','কোয়ালিটি গ্যারান্টি'),('info3_title','১০০% অরিজিনাল'),('maintenance_enabled','0'),('newest_subtitle','সদ্য যোগ হওয়া নতুন সংগ্রহ'),('newest_title','New Arrivals'),('schema_v10_at','2026-11-09 16:46:49'),('schema_v2_at','2026-11-02 10:21:48'),('schema_v3_at','2026-11-02 12:17:46'),('schema_v4_at','2026-11-02 14:28:59'),('schema_v5_at','2026-11-02 15:10:52'),('schema_v6_at','2026-11-05 11:39:40'),('schema_v7_at','2026-11-09 15:19:13'),('schema_v8_at','2026-11-09 15:19:12'),('schema_v9_at','2026-11-09 16:48:00'),('social_facebook',''),('social_instagram',''),('social_whatsapp',''),('sold_count_label','Delivered'),('store_about','বাংলাদেশের সেরা অনলাইন শপিং প্ল্যাটফর্ম। ক্যাশ অন ডেলিভারি সুবিধা সহ।'),('store_address',''),('store_favicon','/uploads/site_logo/store_favicon_20261102132651_beb56a.png'),('store_logo','/uploads/site_logo/store_logo_1760000969.png'),('store_name','Toy BD'),('theme_primary','#6c5ce7'),('theme_secondary','#ff7675');
+INSERT INTO `settings` VALUES ('animations_enabled','0'),('cod_note','সারা দেশে ক্যাশ অন ডেলিভারি প্রযোজ্য।'),('delivery_dhaka','0'),('delivery_global','120'),('delivery_nationwide','0'),('discount_show_product','0'),('featured_subtitle','আপনার জন্য বাছাই করা সেরা পণ্য'),('featured_title','Featured Products'),('hero_autoplay_ms','2500'),('home_heading','হোম পেজ শিরোনাম'),('home_layout',''),('home_notice','বাংলাদেশের সেরা অনলাইন শপিং প্ল্যাটফর্ম। ক্যাশ অন ডেলিভারি সুবিধা সহ।'),('info1_sub','৩–৫ দিনের মধ্যে'),('info1_title','দ্রুত ডেলিভারি'),('info2_sub','পণ্য হাতে পেয়ে পেমেন্ট'),('info2_title','ক্যাশ অন ডেলিভারি'),('info3_sub','কোয়ালিটি গ্যারান্টি'),('info3_title','১০০% অরিজিনাল'),('maintenance_enabled','0'),('newest_subtitle','সদ্য যোগ হওয়া নতুন সংগ্রহ'),('newest_title','New Arrivals'),('schema_v10_at','2026-11-09 16:46:49'),('schema_v11_at','2026-11-10 11:05:07'),('schema_v12_at','2026-11-10 12:00:05'),('schema_v2_at','2026-11-02 10:21:48'),('schema_v3_at','2026-11-02 12:17:46'),('schema_v4_at','2026-11-02 14:28:59'),('schema_v5_at','2026-11-02 15:10:52'),('schema_v6_at','2026-11-05 11:39:40'),('schema_v7_at','2026-11-09 15:19:13'),('schema_v8_at','2026-11-09 17:43:35'),('schema_v9_at','2026-11-09 16:48:00'),('social_facebook',''),('social_instagram',''),('social_whatsapp',''),('sold_count_label','Delivered'),('store_about','বাংলাদেশের সেরা অনলাইন শপিং প্ল্যাটফর্ম। ক্যাশ অন ডেলিভারি সুবিধা সহ।'),('store_address',''),('store_favicon','/uploads/site_logo/store_favicon_20261102132651_beb56a.png'),('store_logo','/uploads/site_logo/store_logo_1760000969.png'),('store_name','Toy BD'),('theme_primary','#6c5ce7'),('theme_secondary','#ff7675');
 DROP TABLE IF EXISTS `sliders`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -419,6 +449,18 @@ CREATE TABLE `subscribers` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+DROP TABLE IF EXISTS `tracking_attempts`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `tracking_attempts` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `ip` varchar(45) NOT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ip_time` (`ip`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 DROP TABLE IF EXISTS `wishlists`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -443,4 +485,3 @@ CREATE TABLE `wishlists` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
-SET FOREIGN_KEY_CHECKS=1;
