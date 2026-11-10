@@ -270,6 +270,11 @@ function render_pagination(int $current_page, int $total_pages, array $params = 
           <i class="fa-solid fa-shield-halved"></i>
           <span>সিকিউরিটি</span>
         </a>
+        <a class="<?php echo is_active('login_security.php'); ?>"
+           href="<?php echo BASE_URL; ?>/admin/login_security.php">
+          <i class="fa-solid fa-user-lock"></i>
+          <span>লগইন সুরক্ষা</span>
+        </a>
       <?php endif; ?>
 
       <?php if (can('view_page_views')): ?>

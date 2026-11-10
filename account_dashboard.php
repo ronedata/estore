@@ -1,6 +1,7 @@
 <?php
 // account_dashboard.php — customer orders, profile, logout
 require_once __DIR__.'/includes/config.php';
+require_once __DIR__.'/includes/order_access.php';
 require_once __DIR__.'/includes/customer_auth.php';
 
 $customer = require_customer();
@@ -113,7 +114,7 @@ include __DIR__.'/includes/partials_header.php';
     <?php else: ?>
       <?php foreach ($orders as $o): ?>
         <?php $sl = $statusLabels[$o['status']] ?? [$o['status'], '#f1f5f9', '#475569']; ?>
-        <a href="<?php echo BASE_URL; ?>/single_order_details.php?id=<?php echo (int)$o['id']; ?>&mobile=<?php echo urlencode($o['mobile']); ?>"
+        <a href="<?php $tk = oa_ensure_token($pdo, $o); echo $tk ? h(oa_details_url($tk)) : (BASE_URL.'/single_order_details.php?id='.(int)$o['id']); ?>"
            style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border-color)">
           <div style="min-width:0">
             <div style="font-weight:800;font-size:.85rem"><?php echo h($o['order_code'] ?: ('#'.$o['id'])); ?></div>

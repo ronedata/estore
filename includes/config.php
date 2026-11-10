@@ -389,4 +389,12 @@ try { ensure_estore_schema_v9(get_pdo()); } catch (Throwable $e) { /* DB unavail
 require_once __DIR__ . '/schema_v10.php';
 try { ensure_estore_schema_v10(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
 
+// ---------- eStore V11 schema (login_attempts, login_locks) ----------
+require_once __DIR__ . '/schema_v11.php';
+try { ensure_estore_schema_v11(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
+
+// ---------- eStore V12 schema (orders.public_token, tracking_attempts) ----------
+require_once __DIR__ . '/schema_v12.php';
+try { ensure_estore_schema_v12(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
+
 ?>

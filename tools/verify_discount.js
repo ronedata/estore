@@ -76,7 +76,8 @@ function send(ws, id, method, params = {}) {
     await ev(`(()=>{const s=document.getElementById('cDistrict');s.value='${DID}';s.dispatchEvent(new Event('change',{bubbles:true}));const f=document.getElementById('checkoutForm');f.customer_name.value='[T] Discount Test';f.mobile.value='01755555555';f.address.value='[T] addr';1})()`);
     await ev("document.querySelector('#checkoutForm button[type=submit]').click()"); await sleep(2200);
     const u = await ev('location.pathname + location.search');
-    OID = (u.match(/id=(\d+)/) || [])[1];
+    OID = sql(`SELECT id FROM orders WHERE public_token='${(u.match(/t=([a-f0-9]{32})/) || [])[1] || 'none'}'`);
+    const TOK = sql(`SELECT public_token FROM orders WHERE id=${OID}`);
     check(!!OID, 'টেস্ট অর্ডার তৈরি (#' + OID + ')');
     if (!OID) throw new Error('অর্ডার তৈরি হয়নি');
     const r0 = row();
@@ -170,10 +171,13 @@ function send(ws, id, method, params = {}) {
     const fin = row();
     check(near(fin.disc, D1) && consistent(fin), 'শেষ অবস্থা: ডিসকাউন্ট ' + fin.disc + ', মোট ' + fin.total);
 
-    await call('Network.setCookie', { name: 'PHPSESSID', value: 'none', domain: new URL(BASE).hostname, path: '/' });
+    sql(`UPDATE orders SET customer_id=4 WHERE id=${OID}`);
+    const CSID = require('crypto').randomBytes(13).toString('hex');
+    require('fs').writeFileSync(`C:/laragon/tmp/sess_${CSID}`, `customer_id|i:4;csrf|s:32:"${'a'.repeat(32)}";__sid_rotated|i:${Math.floor(Date.now() / 1000)};`);
+    await call('Network.setCookie', { name: 'PHPSESSID', value: CSID, domain: new URL(BASE).hostname, path: '/' });
     for (const w of [1326, 390]) {
       await call('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 600 });
-      await go(`/single_order_details.php?id=${OID}`, 1500);
+      await go(`/single_order_details.php?t=${TOK}`, 1500);
       const c = await ev(`(()=>{const o=document.getElementById('odv');const txt=o.innerText;const rows=[...o.querySelectorAll('.disc-val')].filter(e=>e.offsetParent!==null).map(e=>e.textContent.trim());return {txt,rows,hs:document.documentElement.scrollWidth>innerWidth+1}})()`);
       check(c.rows.length >= 1 && c.rows.every((x) => x === '−' + fmt(D1)), `ক্রেতার পেজ (${w}px): "ডিসকাউন্ট ${c.rows[0]}" দেখায়`);
       check(!c.txt.includes('গোপন কারণ') && !c.txt.includes('দিয়েছেন'), `ক্রেতার পেজে কারণ/দাতার নাম দেখায় না (${w}px)`);
@@ -198,12 +202,14 @@ function send(ws, id, method, params = {}) {
     await ev("document.getElementById('updatePriceButton').click()"); await sleep(1800);
     const r5 = row();
     check(r5.disc === 0 && r5.note === '<NULL>' && r5.by === '<NULL>' && consistent(r5) && near(r5.total, r0.sub + r0.ship), 'ফাঁকা করলে ডিসকাউন্ট ০, কারণ/দাতা মুছে, মোট আগের অবস্থায় ফিরল (' + r5.total + ')');
-    await call('Network.setCookie', { name: 'PHPSESSID', value: 'none', domain: new URL(BASE).hostname, path: '/' });
-    await go(`/single_order_details.php?id=${OID}`, 1300);
+    await call('Network.setCookie', { name: 'PHPSESSID', value: CSID, domain: new URL(BASE).hostname, path: '/' });
+    await go(`/single_order_details.php?t=${TOK}`, 1300);
     check(!(await ev("document.getElementById('odv').innerText")).includes('ডিসকাউন্ট'), 'ডিসকাউন্ট ০ হলে ক্রেতার পেজে সারিই আসে না');
-    await go('/single_order_details.php?id=33', 1300);
+    const OLDTOK = sql(`SELECT public_token FROM orders WHERE id<>${OID} AND mobile=(SELECT mobile FROM customers WHERE id=4) AND discount=0 ORDER BY id DESC LIMIT 1`);
+    await go(`/single_order_details.php?t=${OLDTOK}`, 1300);
     check(!(await ev("document.getElementById('odv').innerText")).includes('ডিসকাউন্ট'), 'পুরোনো অর্ডারে (ডিসকাউন্ট ছাড়া) পেজ আগের মতো, নতুন সারি নেই');
 
+    try { require('fs').unlinkSync(`C:/laragon/tmp/sess_${CSID}`); } catch {}
     ws.close();
   } catch (e) { console.error('ERROR: ' + e.message); fail++; }
   finally { chrome.kill(); cleanup(); }

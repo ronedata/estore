@@ -31,8 +31,9 @@ function send(ws, id, method, params = {}) {
 }
 
 (async () => {
-  const row = sql("SELECT o.id, o.mobile FROM orders o JOIN order_items i ON i.order_id=o.id ORDER BY o.id DESC LIMIT 1").split('\t');
+  const row = sql("SELECT o.id, o.mobile FROM orders o JOIN order_items i ON i.order_id=o.id JOIN customers c ON c.mobile=o.mobile ORDER BY o.id DESC LIMIT 1").split('\t');
   const OID = row[0], MOB = row[1];
+  const TOK = sql(`SELECT public_token FROM orders WHERE id=${OID}`), CODE = sql(`SELECT order_code FROM orders WHERE id=${OID}`);
   const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${PORT}`, '--no-sandbox', '--disable-gpu', '--hide-scrollbars', '--user-data-dir=' + os.tmpdir() + '\\of_prof_' + Date.now(), 'about:blank'], { stdio: 'ignore' });
   try {
     let ready = false;
@@ -59,9 +60,13 @@ function send(ws, id, method, params = {}) {
     };
     const BN = /[০-৯]/;
 
+    const SID = require('crypto').randomBytes(13).toString('hex');
+    const CID = sql(`SELECT c.id FROM customers c JOIN orders o ON o.mobile=c.mobile WHERE o.id=${OID}`);
+    require('fs').writeFileSync(`C:/laragon/tmp/sess_${SID}`, `customer_id|i:${CID};csrf|s:32:"${'a'.repeat(32)}";__sid_rotated|i:${Math.floor(Date.now() / 1000)};`);
+    await call('Network.setCookie', { name: 'PHPSESSID', value: SID, domain: new URL(BASE).hostname, path: '/' });
     for (const w of [1326, 390]) {
       console.log(`\n=== অর্ডার ডিটেইলস #${OID} (${w}px) ===`);
-      await go(`/single_order_details.php?id=${OID}`, w);
+      await go(`/single_order_details.php?t=${TOK}`, w);
       const d = await ev(`(()=>{const o=document.getElementById('odv');const q=[...o.querySelectorAll('td[data-label="পরিমাণ"]')].map(e=>e.textContent.trim());const dt=[...o.querySelectorAll('dt')].find(e=>e.textContent.trim()==='তারিখ');return {text:o.innerText,qty:q,date:dt?dt.nextElementSibling.textContent.trim():null,hs:document.documentElement.scrollWidth>innerWidth+1,btnIcon:!!o.querySelector('.actions .btn i.fa-box-open'),emoji:/[\\u{1F300}-\\u{1FAFF}\\u{2600}-\\u{27BF}]/u.test(o.innerText)}})()`);
       check(!BN.test(d.text), 'পেজে কোথাও বাংলা অঙ্ক নেই (টাকা, মোবাইল, পরিমাণ, তারিখ সব ইংরেজি অঙ্কে)');
       check(d.qty.length > 0 && d.qty.every((x) => /^\d+$/.test(x)), 'পরিমাণ ইংরেজি অঙ্কে: ' + d.qty.join(', '));
@@ -85,13 +90,14 @@ function send(ws, id, method, params = {}) {
 
     for (const w of [1326, 390]) {
       console.log(`\n=== অর্ডার ট্র্যাকিং (${w}px) ===`);
-      await go(`/track_orders.php?m=${MOB}`, w);
+      await go(`/track_orders.php?m=${MOB}&c=${CODE}`, w);
       const tr = await ev(`(()=>{const o=document.getElementById('trk');const ds=[...o.querySelectorAll('td[data-label="তারিখ"]')].map(e=>e.textContent.trim());return {text:o.innerText,dates:ds,hs:document.documentElement.scrollWidth>innerWidth+1}})()`);
       check(tr.dates.length > 0 && tr.dates.every((x) => /^\d{2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2} (AM|PM)$/.test(x)), 'তারিখ ইংরেজি অঙ্কে, পরিষ্কার ফরম্যাটে (যেমন ' + tr.dates[0] + ')');
       check(!BN.test(tr.text), 'পেজে বাংলা অঙ্ক নেই');
       check(!tr.hs, 'horizontal overflow নেই');
     }
 
+    try { require('fs').unlinkSync(`C:/laragon/tmp/sess_${SID}`); } catch {}
     ws.close();
   } catch (e) { console.error('ERROR: ' + e.message); fail++; }
   finally { chrome.kill(); }

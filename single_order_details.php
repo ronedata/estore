@@ -2,6 +2,9 @@
 // order_details.php
 require_once __DIR__.'/includes/config.php';
 require_once __DIR__.'/includes/delivery.php';
+require_once __DIR__.'/includes/order_access.php';
+require_once __DIR__.'/includes/customer_auth.php';
+$customer = require_customer();
 $pdo = get_pdo();
 
 /* ---------- Helpers (fallbacks) ---------- */
@@ -43,10 +46,9 @@ function statusProgress($status){
 }
 
 /* ---------- Load order ---------- */
-$id = (int)($_GET['id'] ?? 0);
-$stm = $pdo->prepare("SELECT * FROM orders WHERE id=?");
-$stm->execute([$id]);
-$o = $stm->fetch(PDO::FETCH_ASSOC) ?: null;
+/* গোপন কোড (?t=…) সবার জন্য; আইডি (?id=…) শুধু লগইন করা মালিকের জন্য — নইলে আইডি বদলে বদলে সবার তথ্য দেখা যেত */
+$o  = oa_load_for_customer($pdo, $_GET, $customer);
+$id = $o ? (int)$o['id'] : 0;
 
 /* ---------- Load items ---------- */
 $items = [];

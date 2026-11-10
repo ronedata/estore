@@ -2,6 +2,7 @@
 require_once __DIR__.'/../includes/config.php';
 if (!empty($_SESSION['admin_id'])) { header('Location: '.(BASE_URL.'/admin/index.php')); exit; }
 require_once __DIR__.'/auth_functions.php'; // ফাংশনগুলো এখানে লোড হবে
+require_once __DIR__.'/../includes/login_security.php';
 $error = '';
 if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(16)); }
 
@@ -14,10 +15,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $password = $_POST['password'] ?? '';
   if (!$error && $username && $password) {
     $pdo = get_pdo();
-    $stm = $pdo->prepare("SELECT * FROM admin_users WHERE username=? LIMIT 1");
-    $stm->execute([$username]);
-    $u = $stm->fetch();
-    if ($u && password_verify($password, $u['password_hash'])) {
+    /* লগইন সুরক্ষা: লক থাকলে পাসওয়ার্ড যাচাইই হয় না */
+    $lsCfg  = ls_load($pdo);
+    $lsIp   = ls_client_ip($lsCfg['ip_source']);
+    $lsLock = ls_active_lock($pdo, $lsIp, $username, $lsCfg);
+    if (mt_rand(1, 50) === 1) ls_purge($pdo, (int)$lsCfg['retention_days']);
+    $u = null;
+    if ($lsLock) {
+      ls_record($pdo, $lsIp, $username, 'blocked');
+      $error = 'অনেকবার ভুল চেষ্টা হয়েছে। ' . ls_wait_text($lsLock['until']) . ' পরে আবার চেষ্টা করুন।';
+    } else {
+      $lsSlow = ls_slow_seconds($pdo, $username, $lsCfg);
+      if ($lsSlow > 0) sleep($lsSlow);
+      $stm = $pdo->prepare("SELECT * FROM admin_users WHERE username=? LIMIT 1");
+      $stm->execute([$username]);
+      $u = $stm->fetch();
+    }
+    if (!$lsLock && $u && password_verify($password, $u['password_hash'])) {
+      ls_on_success($pdo, $lsIp, $username);
       // --- পারমিশন সিস্টেমের জন্য সংযোজন ---
       // ইউজারের রোল এবং পারমিশন লোড করা
       $permissions = [];
@@ -62,7 +77,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           session_destroy();
           $error = 'আপনার কোনো পেজ দেখার অনুমতি নেই।';
       }
-    } else { $error = 'ইউজারনেম/পাসওয়ার্ড মিলছে না'; }
+    } elseif (!$lsLock) {
+      $lsF = ls_on_fail($pdo, $lsIp, $username, $lsCfg);
+      if ($lsF['locked']) {
+        $error = 'অনেকবার ভুল চেষ্টা হয়েছে। ' . ls_wait_text($lsF['until']) . ' পরে আবার চেষ্টা করুন।';
+      } else {
+        $error = 'ইউজারনেম/পাসওয়ার্ড মিলছে না';
+        if (!empty($lsCfg['show_remaining']) && $lsF['remaining'] !== null) $error .= ' (আর ' . $lsF['remaining'] . ' বার চেষ্টা করতে পারবেন)';
+      }
+    }
   } else { $error = 'সব ফিল্ড পূরণ করুন'; }
 }
 ?>

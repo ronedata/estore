@@ -1,12 +1,12 @@
 <?php
 require_once __DIR__.'/includes/config.php';
 require_once __DIR__.'/includes/delivery.php';
+require_once __DIR__.'/includes/order_access.php';
 $pdo = get_pdo();
 
-$id  = (int)($_GET['id'] ?? 0);
-$stm = $pdo->prepare("SELECT * FROM orders WHERE id=?");
-$stm->execute([$id]);
-$o = $stm->fetch();
+/* গোপন কোড (t) দিয়ে; আইডি দিয়ে নয় — আইডি আন্দাজ করে অন্যের অর্ডার দেখা যেত */
+$o = oa_by_token($pdo, $_GET['t'] ?? '') ?: null;
+$id = $o ? (int)$o['id'] : 0;
 
 /* ========== Settings / Support ========== */
 $store_phone = (string)($pdo->query("SELECT value FROM settings WHERE `key`='store_phone'")->fetch()['value'] ?? '');

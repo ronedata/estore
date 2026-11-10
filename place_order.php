@@ -2,6 +2,7 @@
 // place_order.php — Free Shipping: কার্টের সব প্রোডাক্টে 'Free' ট্যাগ থাকলেই শিপিং ফি ০
 require_once __DIR__.'/includes/config.php';
 require_once __DIR__.'/includes/delivery.php';
+require_once __DIR__.'/includes/order_access.php';
 $pdo = get_pdo();
 
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
@@ -194,10 +195,11 @@ try {
   }
 
   $ins = $pdo->prepare("INSERT INTO orders
-    (customer_name, mobile, address, shipping_area, shipping_district, shipping_fee, subtotal, total, payment_method, note, customer_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+    (customer_name, mobile, address, shipping_area, shipping_district, shipping_fee, subtotal, total, payment_method, note, customer_id, public_token)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+  $public_token = oa_new_token();
   // mobile হিসেবে লোকাল 01… ফরম্যাট সেভ করছি
-  $ins->execute([$name, $mobile_local, $address, $shipping_area, $shipping_district, $shipping_fee, $subtotal, $total, $payment_method, $note, $customer_id]);
+  $ins->execute([$name, $mobile_local, $address, $shipping_area, $shipping_district, $shipping_fee, $subtotal, $total, $payment_method, $note, $customer_id, $public_token]);
 
   $order_id = (int)$pdo->lastInsertId();
   $code = 'ORD' . str_pad((string)$order_id, 7, '0', STR_PAD_LEFT);
@@ -217,7 +219,7 @@ try {
 
   // অর্ডার সম্পন্ন: কার্ট খালি করে success
   unset($_SESSION['cart']);
-  header('Location: success.php?id='.(int)$order_id);
+  header('Location: success.php?t='.$public_token);
   exit;
 
 } catch (Throwable $e) {

@@ -187,8 +187,8 @@ function send(ws, id, method, params = {}) {
     await pick(D.ctg);
     await ev("document.querySelector('#checkoutForm button[type=submit]').click()"); await sleep(2200);
     const url = await ev('location.pathname + location.search');
-    check(/^\/success\.php\?id=\d+$/.test(url), 'অর্ডার সফল, success পেজে গেল (' + url + ')');
-    const oid = (url.match(/id=(\d+)/) || [])[1];
+    check(/^\/success\.php\?t=[a-f0-9]{32}$/.test(url), 'অর্ডার সফল, success পেজে গেল — গোপন কোডসহ লিংক, আইডি নয়');
+    const oid = sql(`SELECT id FROM orders WHERE public_token='${(url.match(/t=([a-f0-9]{32})/) || [])[1] || 'none'}'`);
     if (oid) {
       orderIds.push(oid);
       const row = sql(`SELECT shipping_district, shipping_area, shipping_fee, subtotal, total FROM orders WHERE id=${oid}`).split('\t');
