@@ -95,6 +95,33 @@ function pf_array_casein_has(array $arr, array $needles): bool {
   return false;
 }
 
+/** মূল পণ্যের ছবির ফাইল নতুন পণ্যের জন্য আলাদা নামে কপি (শেয়ার করলে একটি মুছলে অন্যটির ছবি যেত) */
+function pf_copy_images(PDO $pdo, int $srcId, int $newId): int {
+  $st = $pdo->prepare("SELECT image FROM product_images WHERE product_id=? ORDER BY sort_order, id");
+  $st->execute([$srcId]);
+  $list = $st->fetchAll(PDO::FETCH_COLUMN);
+  if (!$list) return 0;
+  $root = realpath(UPLOAD_DIR);
+  $dstDir = rtrim(PRODUCT_UPLOAD_DIR, '/\\');
+  if (!is_dir($dstDir)) @mkdir($dstDir, 0755, true);
+  $ins = $pdo->prepare("INSERT INTO product_images (product_id, image, sort_order) VALUES (?,?,?)");
+  $n = 0;
+  foreach ($list as $p) {
+    $p = trim((string)$p);
+    if ($p === '' || pf_is_default($p) || preg_match('~^(https?:)?//~i', $p)) continue;
+    if (defined('BASE_URL') && BASE_URL && strpos($p, BASE_URL) === 0) $p = substr($p, strlen(BASE_URL));
+    $abs = realpath(dirname(UPLOAD_DIR) . '/' . ltrim(str_replace('\\', '/', $p), '/'));
+    if ($abs === false || $root === false || strpos($abs, $root) !== 0 || !is_file($abs)) continue;
+    $ext = strtolower(pathinfo($abs, PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'], true)) continue;
+    $fn = 'product_' . $newId . '_' . time() . '_cp' . $n . '.' . $ext;
+    if (!@copy($abs, $dstDir . '/' . $fn)) continue;
+    $ins->execute([$newId, '/uploads/products_image/' . $fn, $n]);
+    $n++;
+  }
+  return $n;
+}
+
 /* ------------ CSRF & constants ------------ */
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 if (!is_dir(pf_uploads_dir_abs())) { @mkdir(pf_uploads_dir_abs(), 0777, true); }
@@ -102,6 +129,7 @@ define('DEFAULT_IMG_URL', pf_uploads_url_base().'/default.jpg');
 
 /* ------------ ID ------------ */
 $id = (int)($_GET['id'] ?? 0);
+$copySrcId = ($id === 0 && isset($_GET['copy']) && is_string($_GET['copy']) && ctype_digit($_GET['copy'])) ? (int)$_GET['copy'] : 0;
 
 /* ========================
    Delete a single image (DB + file) — (GET keep as-is)
@@ -208,6 +236,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['save_product'])){
        বড় হলে center-crop, ছোট হলে সাদা প্যাডিং। */
     $imgReport = [];
     $imgErrors = [];
+    $copyFrom = ($pid === 0 && is_string($_POST['copy_from'] ?? null) && ctype_digit($_POST['copy_from'])) ? (int)$_POST['copy_from'] : 0;
+    $newSaved = 0;
+    if ($copyFrom > 0 && isset($_POST['copy_images'])) {
+      try { $newSaved += pf_copy_images($pdo, $copyFrom, $newId); } catch (Throwable $e) {}
+    }
+    $sortBase = 0;
+    try {
+      $sb = $pdo->prepare("SELECT COALESCE(MAX(sort_order)+1,0) FROM product_images WHERE product_id=? AND LOWER(image) NOT LIKE '%/default.jpg'");
+      $sb->execute([$newId]); $sortBase = (int)$sb->fetchColumn();
+    } catch (Throwable $e) {}
     if (!empty($_FILES['images']) && is_array($_FILES['images']['name'])){
       $f=$_FILES['images']; $total=count($f['name']);
       for($i=0;$i<$total;$i++){
@@ -262,7 +300,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['save_product'])){
 
         if ($ok){
           $url=pf_uploads_url_base().'/'.$fname;
-          $pdo->prepare("INSERT INTO product_images(product_id,image,sort_order) VALUES(?,?,?)")->execute([$newId,$url,$i]);
+          $pdo->prepare("INSERT INTO product_images(product_id,image,sort_order) VALUES(?,?,?)")->execute([$newId,$url,$sortBase+$i]);
+          $newSaved++;
         }
       }
 
@@ -270,6 +309,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['save_product'])){
       if (!empty($imgErrors)) {
         $_SESSION['flash'] = ['ok' => false, 'msg' => implode(' | ', $imgErrors)];
       }
+    }
+
+    /* আসল ছবি (আপলোড বা কপি) এলে ডিফল্ট প্লেসহোল্ডার সারি সরে যায় (default.jpg ফাইল থাকে) */
+    if ($newSaved > 0) {
+      $pdo->prepare("DELETE FROM product_images WHERE product_id=? AND LOWER(image) LIKE '%/default.jpg'")->execute([$newId]);
     }
 
     /* ---- Video: single file ---- */
@@ -337,6 +381,21 @@ if ($id>0){
   }catch(Throwable $e){}
 }
 
+$copyRow = null; $copyImages = []; $ytPrefill = '';
+if (!$edit && $copySrcId > 0) {
+  $cs = $pdo->prepare("SELECT * FROM products WHERE id=?"); $cs->execute([$copySrcId]); $copyRow = $cs->fetch(PDO::FETCH_ASSOC) ?: null;
+  if ($copyRow) {
+    $suffix = ' (কপি)';
+    $copyRow['name'] = mb_substr((string)$copyRow['name'], 0, 255 - mb_strlen($suffix)) . $suffix;
+    try {
+      $ci = $pdo->prepare("SELECT image FROM product_images WHERE product_id=? ORDER BY sort_order, id"); $ci->execute([$copySrcId]);
+      foreach ($ci->fetchAll(PDO::FETCH_COLUMN) as $im) { if (!pf_is_default((string)$im)) $copyImages[] = $im; }
+      $cy = $pdo->prepare("SELECT url FROM product_videos WHERE product_id=? AND type='youtube' LIMIT 1"); $cy->execute([$copySrcId]); $ytPrefill = (string)($cy->fetchColumn() ?: '');
+    } catch (Throwable $e) {}
+  }
+}
+$fv = $edit ?: ($copyRow ?: []);
+
 /* ---- হোম সেকশন টগল: active manual সেকশন; এডিটে বর্তমান সংযোগ, নতুনে new_default ---- */
 $hsSections = [];
 $hsChecked  = [];
@@ -350,7 +409,7 @@ try {
 } catch (Throwable $e) { /* home_sections টেবিল না থাকলে টগল দেখাবে না */ }
 
 /* ---- Derive flags from existing tags for checkbox default ---- */
-$tagsExisting = (string)($edit['tags'] ?? '');
+$tagsExisting = (string)($fv['tags'] ?? '');
 $tagArrExist  = pf_tags_to_array_preserve($tagsExisting);
 $is_free_checked = pf_array_casein_has($tagArrExist, ['free','free shipping','free delivery']);
 $is_hot_checked  = pf_array_casein_has($tagArrExist, ['hot','hot item']);
@@ -378,7 +437,7 @@ require_once __DIR__.'/header.php';
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h5 class="m-0"><?php echo $edit ? 'পণ্য এডিট' : 'নতুন পণ্য'; ?></h5>
+  <h5 class="m-0"><?php echo $edit ? 'পণ্য এডিট' : ($copyRow ? 'পণ্য কপি' : 'নতুন পণ্য'); ?></h5>
   <div class="btn-toolbar gap-2">
     <a href="products.php" class="btn btn-outline-secondary btn-pill">পণ্য তালিকা</a>
     <?php if($edit): ?>
@@ -388,22 +447,26 @@ require_once __DIR__.'/header.php';
   </div>
 </div>
 
+<?php if ($copyRow): ?>
+  <div class="alert alert-info py-2" id="copyBanner"><i class="fa-solid fa-copy"></i> <strong>"<?php echo h($copySrcId ? mb_substr(preg_replace('/ \(কপি\)$/u', '', $copyRow['name']), 0, 80) : ''); ?>"</strong> পণ্যের কপি। নাম, দাম, স্টক ঠিক করে <strong>Save</strong> চাপলে তবেই নতুন পণ্য তৈরি হবে — Save না করলে কিছুই তৈরি হবে না।</div>
+<?php endif; ?>
 <div class="card"><div class="card-body">
   <form method="post" enctype="multipart/form-data" id="productForm">
     <input type="hidden" name="csrf" value="<?php echo h($_SESSION['csrf']); ?>">
     <input type="hidden" name="id" value="<?php echo (int)($edit['id'] ?? 0); ?>">
+    <?php if ($copyRow): ?><input type="hidden" name="copy_from" value="<?php echo (int)$copySrcId; ?>"><?php endif; ?>
 
     <div class="row g-3">
       <div class="col-md-6">
         <label class="form-label">নাম</label>
-        <input name="name" class="form-control" required value="<?php echo h($edit['name'] ?? ''); ?>">
+        <input name="name" class="form-control" required value="<?php echo h($fv['name'] ?? ''); ?>">
       </div>
       <div class="col-md-3">
         <label class="form-label">ক্যাটেগরি</label>
         <select name="category_id" class="form-select">
           <option value="">-- None --</option>
           <?php foreach($cats as $c): ?>
-            <option value="<?php echo (int)$c['id']; ?>" <?php echo (isset($edit['category_id']) && (int)$edit['category_id']===(int)$c['id'])?'selected':''; ?>>
+            <option value="<?php echo (int)$c['id']; ?>" <?php echo (isset($fv['category_id']) && (int)$fv['category_id']===(int)$c['id'])?'selected':''; ?>>
               <?php echo h($c['name']); ?>
             </option>
           <?php endforeach; ?>
@@ -411,20 +474,20 @@ require_once __DIR__.'/header.php';
       </div>
       <div class="col-md-3">
         <label class="form-label">মূল্য</label>
-        <input type="number" step="0.01" name="price" class="form-control" required value="<?php echo h($edit['price'] ?? ''); ?>">
+        <input type="number" step="0.01" name="price" class="form-control" required value="<?php echo h($fv['price'] ?? ''); ?>">
       </div>
       <div class="col-md-3">
         <label class="form-label">তুলনামূলক দাম</label>
-        <input type="number" step="0.01" name="compare_at_price" class="form-control" value="<?php echo h($edit['compare_at_price'] ?? ''); ?>">
+        <input type="number" step="0.01" name="compare_at_price" class="form-control" value="<?php echo h($fv['compare_at_price'] ?? ''); ?>">
       </div>
       <div class="col-md-3">
         <label class="form-label">স্টক</label>
-        <input type="number" name="stock" class="form-control" required value="<?php echo h($edit['stock'] ?? '0'); ?>">
+        <input type="number" name="stock" class="form-control" required value="<?php echo h($fv['stock'] ?? '0'); ?>">
       </div>
 
       <div class="col-md-6">
         <label class="form-label">ট্যাগ (কমা দিয়ে আলাদা)</label>
-        <input type="text" name="tags" class="form-control" value="<?php echo h($edit['tags'] ?? ''); ?>">
+        <input type="text" name="tags" class="form-control" value="<?php echo h($fv['tags'] ?? ''); ?>">
         <div class="form-text">উদাহরণ: <code>new, best, discount</code>. নিচের চেকবক্স টিক দিলে ট্যাগে স্বয়ংক্রিয়ভাবে যোগ/বিয়োগ হবে।</div>
         <div class="mt-2 d-flex flex-wrap gap-3">
           <div class="form-check">
@@ -440,11 +503,11 @@ require_once __DIR__.'/header.php';
 
       <div class="col-12">
         <label class="form-label">স্পেসিফিকেশন</label>
-        <textarea name="specifications" class="form-control" rows="3" placeholder="বিস্তারিত স্পেসিফিকেশন..."><?php echo h($edit['specifications'] ?? ''); ?></textarea>
+        <textarea name="specifications" class="form-control" rows="3" placeholder="বিস্তারিত স্পেসিফিকেশন..."><?php echo h($fv['specifications'] ?? ''); ?></textarea>
       </div>
       <div class="col-12">
         <label class="form-label">বিবরণ</label>
-        <textarea name="description" class="form-control" rows="4"><?php echo h($edit['description'] ?? ''); ?></textarea>
+        <textarea name="description" class="form-control" rows="4"><?php echo h($fv['description'] ?? ''); ?></textarea>
       </div>
 
       <div class="col-12">
@@ -499,7 +562,17 @@ require_once __DIR__.'/header.php';
         
         <input type="file" id="cameraInput" style="display:none;" accept="image/*" capture="environment">
         
-        <?php if(!empty($images)): ?>
+        <?php if ($copyRow && $copyImages): ?>
+          <div class="mt-2 d-flex flex-wrap gap-2" id="copyImgs">
+            <?php foreach ($copyImages as $im): ?>
+              <div class="img-chip"><img src="<?php echo h($im); ?>" class="thumb" alt=""></div>
+            <?php endforeach; ?>
+          </div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" name="copy_images" id="copyImagesChk" value="1" checked>
+            <label class="form-check-label" for="copyImagesChk">মূল পণ্যের <?php echo count($copyImages); ?>টি ছবি এই নতুন পণ্যে কপি হোক (Save করলে)</label>
+          </div>
+        <?php elseif(!empty($images)): ?>
           <div class="mt-2 d-flex flex-wrap gap-2">
             <?php foreach($images as $im): ?>
               <div class="img-chip">
@@ -533,7 +606,7 @@ require_once __DIR__.'/header.php';
         <div class="input-group">
           <input type="url" name="youtube_url" class="form-control"
                  placeholder="https://youtu.be/... বা https://www.youtube.com/watch?v=..."
-                 value="<?php echo h($video_yt['url'] ?? ''); ?>">
+                 value="<?php echo h($video_yt['url'] ?? $ytPrefill); ?>">
           <?php if($video_yt): ?>
             <button type="button" class="btn btn-outline-danger"
                     data-bs-toggle="modal" data-bs-target="#rmVideoYtModal">
@@ -570,14 +643,14 @@ require_once __DIR__.'/header.php';
       <div class="col-md-4">
         <label class="form-label">কার্ড/স্টিকারের রঙ</label>
         <input type="color" name="badge_color" class="form-control form-control-color"
-               value="<?php echo h(!empty($edit['badge_color']) ? $edit['badge_color'] : '#ff5252'); ?>">
+               value="<?php echo h(!empty($fv['badge_color']) ? $fv['badge_color'] : '#ff5252'); ?>">
         <div class="form-text">ডিসকাউন্ট/Buy বাটনে ব্যবহার হয়।</div>
       </div>
 
       <div class="col-12">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" name="active" id="activeChk"
-            <?php echo (isset($edit['active']) ? ((int)$edit['active'] ? 'checked' : '') : 'checked'); ?>>
+            <?php echo (isset($fv['active']) ? ((int)$fv['active'] ? 'checked' : '') : 'checked'); ?>>
           <label for="activeChk" class="form-check-label">Active</label>
         </div>
       </div>

@@ -275,6 +275,11 @@ function render_pagination(int $current_page, int $total_pages, array $params = 
           <i class="fa-solid fa-user-lock"></i>
           <span>লগইন সুরক্ষা</span>
         </a>
+        <a class="<?php echo is_active('backup.php'); ?>"
+           href="<?php echo BASE_URL; ?>/admin/backup.php">
+          <i class="fa-solid fa-cloud-arrow-down"></i>
+          <span>ব্যাকআপ</span>
+        </a>
       <?php endif; ?>
 
       <?php if (can('view_page_views')): ?>

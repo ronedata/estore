@@ -11,12 +11,12 @@ $pdo = get_pdo();
 if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(16)); }
 
 /* --------- Filters --------- */
-$q      = trim($_GET['q'] ?? '');
-$cat    = (int)($_GET['cat'] ?? 0);
-$status = $_GET['status'] ?? 'all'; // all|active|inactive
-$page   = max(1, (int)($_GET['page'] ?? 1));
-$per_page = 10; // প্রতি পৃষ্ঠায় আইটেম সংখ্যা
-$offset = ($page - 1) * $per_page;
+$q      = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
+$cat    = is_scalar($_GET['cat'] ?? null) ? (int)$_GET['cat'] : 0;
+$status = is_string($_GET['status'] ?? null) && in_array($_GET['status'], ['active', 'inactive'], true) ? $_GET['status'] : 'all';
+$page   = is_scalar($_GET['page'] ?? null) ? max(1, (int)$_GET['page']) : 1;
+$PER_OPTIONS = [10, 20, 50, 100];
+$per_page = is_scalar($_GET['per'] ?? null) && in_array((int)$_GET['per'], $PER_OPTIONS, true) ? (int)$_GET['per'] : 20;
 
 $current_url_params = $_GET; // পেজিনেশন লিঙ্কের জন্য
 
@@ -53,7 +53,30 @@ $count_sql = "SELECT COUNT(p.id) FROM products p WHERE $where";
 $count_stm = $pdo->prepare($count_sql);
 $count_stm->execute($params);
 $total_rows = (int)$count_stm->fetchColumn();
-$total_pages = ceil($total_rows / $per_page);
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+if ($page > $total_pages) $page = $total_pages;
+$offset = ($page - 1) * $per_page;
+
+/* --------- CSV এক্সপোর্ট (বর্তমান ফিল্টার অনুযায়ী, সব পৃষ্ঠার পণ্য) --------- */
+if (($_GET['export'] ?? '') === 'csv') {
+  $ex = $pdo->prepare("SELECT p.id, p.name, c.name AS cat_name, p.sku, p.price, p.compare_at_price, p.stock, p.active, p.sold_count, p.created_at
+        FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE $where ORDER BY p.id DESC");
+  $ex->execute($params);
+  while (ob_get_level() > 0) @ob_end_clean();
+  header('Content-Type: text/csv; charset=utf-8');
+  header('Content-Disposition: attachment; filename="products_' . date('Ymd_His') . '.csv"');
+  header('Cache-Control: no-store');
+  $out = fopen('php://output', 'w');
+  fwrite($out, "\xEF\xBB\xBF");
+  fputcsv($out, ['ID', 'নাম', 'ক্যাটেগরি', 'SKU', 'দাম', 'আগের দাম', 'স্টক', 'স্ট্যাটাস', 'বিক্রি', 'তৈরির তারিখ']);
+  $safe = function ($v) { $v = (string)$v; return ($v !== '' && strpbrk($v[0], "=+-@\t\r") !== false) ? "'" . $v : $v; };
+  while ($r = $ex->fetch(PDO::FETCH_ASSOC)) {
+    fputcsv($out, [$r['id'], $safe($r['name']), $safe($r['cat_name']), $safe($r['sku']), $r['price'], $r['compare_at_price'], $r['stock'],
+                   $r['active'] ? 'Active' : 'Inactive', $r['sold_count'], $r['created_at']]);
+  }
+  fclose($out);
+  exit;
+}
 
 /* --------- Fetch paginated rows --------- */
 $sql = "SELECT p.id, p.name, p.price, p.stock, p.active, c.name AS cat_name,
@@ -69,6 +92,27 @@ $stm->bindValue(':limit', $per_page, PDO::PARAM_INT);
 $stm->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stm->execute(); $rows = $stm->fetchAll(PDO::FETCH_ASSOC);
 
+/* কোন পণ্য কোন হোম সেকশনে আছে */
+$secTags = [];
+$secColors = [['#dbeafe','#1e40af'],['#dcfce7','#166534'],['#fef3c7','#92400e'],['#fce7f3','#9d174d'],['#ede9fe','#5b21b6'],['#ffedd5','#9a3412'],['#cffafe','#155e75'],['#fee2e2','#991b1b']];
+$secColorOf = [];
+try {
+  foreach ($pdo->query("SELECT id FROM home_sections ORDER BY sort_order, id")->fetchAll(PDO::FETCH_COLUMN) as $i => $sid) {
+    $secColorOf[(int)$sid] = $secColors[$i % count($secColors)];
+  }
+} catch (Throwable $e) {}
+if ($rows) {
+  try {
+    $ids = array_map('intval', array_column($rows, 'id'));
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $ts = $pdo->prepare("SELECT hsp.product_id, hs.title, hs.id FROM home_section_products hsp JOIN home_sections hs ON hs.id=hsp.section_id WHERE hsp.product_id IN ($ph) ORDER BY hs.sort_order, hs.id");
+    $ts->execute($ids);
+    foreach ($ts->fetchAll(PDO::FETCH_NUM) as [$pid, $ttl, $sid]) $secTags[(int)$pid][] = [$ttl, (int)$sid];
+  } catch (Throwable $e) {}
+}
+$from_n = $total_rows ? $offset + 1 : 0;
+$to_n   = min($offset + $per_page, $total_rows);
+
 /* --------- Helpers --------- */
 if (!function_exists('h')) {
   function h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
@@ -83,6 +127,9 @@ require_once __DIR__.'/header.php';
 <style>
   .thumb{width:60px;height:60px;object-fit:cover;border:1px solid #e5e7eb;border-radius:8px;background:#fff}
   .btn-pill{border-radius:999px}
+  .thumb-zoom{cursor:zoom-in;transition:transform .12s}
+  .thumb-zoom:hover{transform:scale(1.05)}
+  .sec-tag{font-weight:600;font-size:11px;border-radius:999px;padding:.3em .65em}
 
   /* ডেস্কটপ/ট্যাবলেট: কলামের ফিক্সড প্রস্থ, যাতে "নাম" পুরো টেবিল টেনে না ফেলে */
   @media (min-width: 577px){
@@ -134,14 +181,17 @@ require_once __DIR__.'/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h5 class="m-0">পণ্য ব্যবস্থাপনা</h5>
-  <a class="btn btn-primary btn-pill" href="product_form.php">+ নতুন পণ্য</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-pill" id="exportCsv" href="products.php?<?php echo h(http_build_query(array_merge(array_diff_key($_GET, ['page'=>1,'export'=>1]), ['export'=>'csv']))); ?>"><i class="fa-solid fa-file-csv"></i> CSV</a>
+    <a class="btn btn-primary btn-pill" href="product_form.php">+ নতুন পণ্য</a>
+  </div>
 </div>
 
 <form class="row g-2 mb-3" method="get">
-  <div class="col-12 col-md-4">
+  <div class="col-12 col-md-3">
     <input class="form-control" name="q" placeholder="পণ্য খুঁজুন..." value="<?php echo h($q); ?>">
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-2">
     <select class="form-select" name="cat">
       <option value="0">সব ক্যাটেগরি</option>
       <?php foreach($cats as $c): ?>
@@ -151,17 +201,23 @@ require_once __DIR__.'/header.php';
       <?php endforeach; ?>
     </select>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-2">
     <select class="form-select" name="status">
       <option value="all" <?php echo $status==='all'?'selected':''; ?>>সব স্ট্যাটাস</option>
       <option value="active" <?php echo $status==='active'?'selected':''; ?>>Active</option>
       <option value="inactive" <?php echo $status==='inactive'?'selected':''; ?>>Inactive</option>
     </select>
   </div>
-  <div class="col-12 col-md-2 d-grid">
+  <div class="col-6 col-md-2">
+    <select class="form-select" name="per" id="perPage" title="প্রতি পৃষ্ঠায় কতটি" onchange="this.form.submit()">
+      <?php foreach ($PER_OPTIONS as $o): ?><option value="<?php echo $o; ?>" <?php echo $per_page===$o?'selected':''; ?>>প্রতি পৃষ্ঠায় <?php echo $o; ?></option><?php endforeach; ?>
+    </select>
+  </div>
+  <div class="col-6 col-md-2 d-grid">
     <button class="btn btn-outline-secondary btn-pill">ফিল্টার</button>
   </div>
 </form>
+<div class="small text-muted mb-2" id="pgInfo">মোট <?php echo $total_rows; ?>টি পণ্য<?php if ($total_rows): ?> — <?php echo $from_n; ?>–<?php echo $to_n; ?> দেখানো হচ্ছে (পৃষ্ঠা <?php echo $page; ?>/<?php echo $total_pages; ?>)<?php endif; ?></div>
 
 <div class="card"><div class="card-body p-0">
   <div class="table-responsive">
@@ -186,12 +242,13 @@ require_once __DIR__.'/header.php';
           <td data-label="ID">#<?php echo (int)$r['id']; ?></td>
 
           <td data-label="ছবি" class="cell-img">
-            <img class="thumb" src="<?php echo h($img); ?>" alt="">
+            <img class="thumb thumb-zoom" src="<?php echo h($img); ?>" alt="" data-full="<?php echo h($img); ?>" data-title="<?php echo h($r['name']); ?>">
           </td>
 
           <!-- ✅ নাম: আর কোনো লিঙ্ক নেই -->
           <td data-label="নাম" class="cell-name">
             <span class="name"><?php echo h($r['name']); ?></span>
+            <?php foreach (($secTags[(int)$r['id']] ?? []) as [$ttl, $sid]): $cl = $secColorOf[$sid] ?? ['#e5e7eb','#374151']; ?><span class="badge sec-tag" style="background:<?php echo $cl[0]; ?>;color:<?php echo $cl[1]; ?>"><?php echo h($ttl); ?></span> <?php endforeach; ?>
           </td>
 
           <td data-label="ক্যাটেগরি"><?php echo h($r['cat_name']); ?></td>
@@ -215,6 +272,7 @@ require_once __DIR__.'/header.php';
           <td data-label="অ্যাকশন" class="text-end td-actions">
             <div class="btn-group">
               <a class="btn btn-sm btn-outline-primary btn-pill" href="product_form.php?id=<?php echo (int)$r['id']; ?>">Edit</a>
+              <a class="btn btn-sm btn-outline-secondary btn-pill btn-dup" title="নতুন ট্যাবে কপি-ফর্ম খুলবে (Save না করলে কিছুই তৈরি হবে না)" href="product_form.php?copy=<?php echo (int)$r['id']; ?>" target="_blank" rel="noopener">কপি</a>
               <button type="button" class="btn btn-sm btn-outline-danger btn-pill btn-del"
                       data-id="<?php echo (int)$r['id']; ?>"
                       data-name="<?php echo h($r['name']); ?>">
@@ -258,6 +316,19 @@ require_once __DIR__.'/header.php';
   </div>
 </div>
 
+<!-- Image preview modal -->
+<div class="modal fade" id="imgModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="imgModalTitle"></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center"><img id="imgModalImg" src="" alt="" style="max-width:100%;max-height:70vh"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Toast area -->
 <div id="toastArea"></div>
 
@@ -274,6 +345,14 @@ require_once __DIR__.'/header.php';
       delId = btn.dataset.id;
       delNameEl.textContent = btn.dataset.name || ('#'+delId);
       bootstrap.Modal.getOrCreateInstance(delModalEl).show();
+    });
+  });
+
+  document.querySelectorAll('.thumb-zoom').forEach(im=>{
+    im.addEventListener('click', ()=>{
+      document.getElementById('imgModalImg').src = im.dataset.full || im.src;
+      document.getElementById('imgModalTitle').textContent = im.dataset.title || '';
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('imgModal')).show();
     });
   });
 

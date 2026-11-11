@@ -173,6 +173,8 @@ home_sections: 2   home_section_products: 28 (Featured 7 + New Arrivals 21)
 | স্ট্যাটিক পেজ রেন্ডারার | `includes/render_page.php` |
 | ইমেজ প্রসেসিং (crop/pad) | `includes/image_processor.php` |
 | ইমেজ URL রিজলভার | `includes/config.php` → `img_url()` |
+| ব্যাকআপ (ডাটাবেস .sql + কোড/ছবি .zip) | `admin/backup.php`, helper `includes/backup.php` (`bk_*`) — শুধু Super Admin (আলাদা পারমিশন নেই, `gate('settings')`)। PHP দিয়ে স্ট্রিম ডাউনলোড (exec/mysqldump লাগে না), সার্ভারে ফাইল জমে না; "ডেমো" ডাম্পে ১৩টি ব্যক্তিগত টেবিলের শুধু কাঠামো; কোড-জিপে `uploads/logs/database/tools/docs/.git` ও **config ফাইল বাদ**; শেষ ব্যাকআপ `settings.backup_last_db/code/uploads`, ডাটাবেসের ৭ দিনের বেশি পুরোনো হলে সতর্কতা। জিপের জন্য `ZipArchive` লাগে (লোকাল Laragon Apache PHP 8.3-এ `extension=zip` কমেন্ট করা — পেজে বার্তা দেখায়; টেস্ট `php -S` দিয়ে) |
+| পণ্য তালিকা (পেজিনেশন/CSV/কপি/প্রিভিউ) | `admin/products.php`: প্রতি পৃষ্ঠায় 10/20/50/100 (`per`, ডিফল্ট ২০, whitelist), পৃষ্ঠা-সীমা শেষ পৃষ্ঠায় ছাঁটা; `?export=csv` বর্তমান ফিল্টারের সব পণ্য (UTF-8 BOM, `= + - @` দিয়ে শুরু ঘরে আগে `'`); নামের নিচে হোম-সেকশন ব্যাজ (সেকশনের ক্রম অনুযায়ী ৮টি নরম রঙ, প্রতিবার একই রঙ); ছবিতে ক্লিকে বড় প্রিভিউ; "কপি" বাটন = নতুন ট্যাবে `product_form.php?copy=ID` (লিংক, `target=_blank`): ফর্ম মূল পণ্যের মান দিয়ে ভরা (নামে " (কপি)", youtube লিংকসহ), **ডাটাবেসে কিছুই লেখা হয় না — Save চাপলে তবেই নতুন পণ্য**; `copy_from` + "ছবি কপি" চেকবক্স থাকলে সার্ভার ছবির **ফাইল আলাদা নামে (`_cpN`) কপি** করে (শেয়ার করলে একটি ডিলিটে অন্যটির ছবি যেত), পরে আপলোড করা ছবি এর পরে বসে; `copy_from` শুধু নতুন পণ্যে (`id=0`) কাজ করে। কোনো নিশ্চিতকরণ পপআপ নেই (ডেটা বদলায় না বলে)। আগের `product_duplicate.php` সরানো হয়েছে |
 | সিকিউরিটি রিপোর্ট | `admin/security.php` |
 | Page Views রিপোর্ট | `admin/page_views.php` (পারমিশন `view_page_views`) |
 | হোম সেকশন ম্যানেজার | `admin/home_sections.php`, `admin/home_section_form.php`, helper `includes/home_sections.php` (পারমিশন `manage_home_sections`) |
@@ -272,6 +274,10 @@ home_sections: 2   home_section_products: 28 (Featured 7 + New Arrivals 21)
 | `node tools/verify_permissions_ui.js <url>` | পারমিশন↔মেনু নাম মিল ১৪টি চেক, পারমিশন সংখ্যা ১৭ ধরে (`ADMIN_COOKIE` লাগে) |
 | `node tools/verify_order_print.js <url>` | admin/order_print: স্ক্রিন (১৩২৬/৮০০/৩৯০px) ও প্রিন্ট-মিডিয়া (A4 ৭৯৪/৭০০/৬০০px)-এ কাস্টমার+অর্ডার কার্ড পাশাপাশি, ইংরেজি অঙ্কের তারিখ, আসল PDF ১ পাতা ২৯টি চেক (অস্থায়ী অ্যাডমিন সেশন; ডাটাবেস বদলায় না) |
 | `php tools/test_login_security.php` | লগইন সুরক্ষা লজিক ১১৫টি চেক (সেটিংস যাচাই, আইপি শনাক্তকরণ — জাল হেডার সহ, আইপি/ইউজারনেম-লক, সময়সীমা, সাদা তালিকা, ধীর করা, সফল লগইনের প্রভাব, লক খোলা, fail-open; শুধু টেস্ট-আইপি `203.0.113.x` ছোঁয়, ls_* সেটিংস ফেরায়) |
+| `node tools/verify_backup.js <url>` | ব্যাকআপ end-to-end ৩৬টি চেক (অ্যাক্সেস/CSRF, আসল ডাউনলোড → অস্থায়ী DB `estore_bk_verify`-এ ইমপোর্ট, সারি সংখ্যা ও চেকসাম মিল, ডেমো ডাম্পে ব্যক্তিগত ডেটা নেই, জিপের বিষয়বস্তু ও config বাদ, সতর্কতা; জিপ-টেস্টে `php -S 127.0.0.1:8123` ও সেই URL দিন; শেষে সব ফেরায়) |
+| `node tools/verify_backup_ui.js <url>` | ব্যাকআপ পেজ আসল ব্রাউজারে: ৪টি বাটন দৃশ্যমান (১৩২৬/৩৯০px), overflow নেই, ক্লিকে ৪টি ফাইল নামে, পেজে "শেষ ব্যাকআপ" তারিখ ১২টি চেক (জিপের জন্য `php -S 127.0.0.1:8123 -t .` ও সেই URL)। বড় ডেটা পরীক্ষা: ৬ লাখ সারি/৩২৬MB ডাম্প ২MB মেমোরিতে ৪.৬ সেকেন্ডে, ইমপোর্টে চেকসাম মিলেছে |
+| `node tools/verify_products_page.js <url>` | admin/products.php ৫৮টি চেক (পেজিনেশন/অবৈধ per-page/অ্যারে ইনপুট, সেকশন ব্যাজ, CSV হেডার/BOM/ফিল্টার/ফর্মুলা-ইনজেকশন/পারমিশন, ডুপ্লিকেট: CSRF/GET/অবৈধ আইডি/ছবির ফাইল কপি/কপি মুছলে আসলের ছবি থাকে, ব্রাউজারে প্রিভিউ মোডাল ও কপি-ডায়ালগ ২ প্রস্থ; `[T]` পণ্য ও ছবি নিজে মোছে) |
+| `node tools/verify_product_images.js <url>` | product_form ছবি আপলোড ১৬টি চেক: default.jpg প্লেসহোল্ডার সারি আসল ছবি এলে নিজে সরে (ফাইল থাকে), ক্রম 0,1,2 বাড়ে, ছবি ছাড়া সেভে default.jpg থাকে, ছবি মোছা (`[T]` পণ্য নিজে মোছে) |
 | `php tools/test_order_access.php` | গোপন কোড, মোবাইল/কোড নরমালাইজ, `oa_find`, আইডি-মালিক নিয়ম, ট্র্যাকিং সীমা, মাইগ্রেশন idempotent ৯০টি চেক (`[T]` অর্ডার নিজে মোছে) |
 | `node tools/verify_order_tracking.js <url>` | ট্র্যাকিং end-to-end ৩৩টি চেক (গেস্ট পেজ খোলা, ভিউতে লগইন redirect, ৭ দিন + আরও দেখুন ১২→২২→২৭, অন্যের অর্ডার বন্ধ, ভুল চেষ্টার সীমা, ২ প্রস্থ; `[T]` গ্রাহক/অর্ডার ও অস্থায়ী সেশন নিজে বানায়-মোছে) |
 | `node tools/verify_login_security.js <url>` | লগইন সুরক্ষা end-to-end ৬১টি চেক (সেটিংস পেজ, আসল লগইন ফর্মে আটকানো, অন্য আইপি অপ্রভাবিত, লক খোলা, ইউজারনেম-লক, সাদা তালিকা, ধীর করা, সুরক্ষা বন্ধ, CSRF, সার্ভার-যাচাই; নকল আইপি + অস্থায়ী অ্যাডমিন `[t]admin`; শেষে সব ফেরায়) |
@@ -347,6 +353,7 @@ users: (admin_users টেবিলে দেখুন; সবই role = Super A
 | `product_form.php` / `product_add_for_mobile.php`-এ POST টেস্টে কিছু সেভ হয় না | সাবমিট বাটনের `save_product` ফিল্ড না পাঠালে সেভ ব্লকটাই চলে না |
 | config ফাইলে `\n` অ্যাঙ্কর দিয়ে স্ক্রিপ্ট-এডিট মেলে না | ফাইলে CRLF আছে (live.config.php-এ CRLF+LF মিশ্র) — এক-লাইনের অ্যাঙ্কর / Edit টুল ব্যবহার করুন |
 | PHP ডাবল-কোট স্ট্রিংয়ে `"$var→x"` এ Undefined variable | বহু-বাইট অক্ষরও ভেরিয়েবল নামের অংশ হয় → `{$var}` ব্যবহার করুন |
+| edit-এ default.jpg হাতে ডিলিট করতে হত | নতুন ছবি আপলোডে সেগুলো `sort_order` 0 থেকে বসত আর প্লেসহোল্ডার সারিও (sort 0, ছোট id) থেকে যেত → মূল ছবি default.jpg-ই থাকত; এখন আসল ছবি সেভ হলে `product_images`-এর default.jpg সারি মোছে (ফাইল নয়) এবং নতুন ছবির `sort_order` বিদ্যমান সর্বোচ্চ + 1 থেকে শুরু (`product_form.php`) |
 | `can()` খালি `admin_permissions` হলে Super Admin-কেও false দেয় | টেস্ট সেশনে অন্তত একটি পারমিশন রাখুন (`make_admin_session.php` তাই করে) |
 
 ---
