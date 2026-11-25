@@ -2,6 +2,7 @@
 // admin/order_view.php
 require_once __DIR__.'/header.php';
 require_once __DIR__.'/../includes/delivery.php';
+require_once __DIR__.'/../includes/steadfast.php';
 gate('manage_orders');
 $pdo = get_pdo();
 
@@ -52,6 +53,7 @@ $it->execute([$id]);
 $items = $it->fetchAll(PDO::FETCH_ASSOC);
 
 /* ---------- Totals (fallback if missing) ---------- */
+require_once __DIR__.'/../includes/finance.php';
 $calcSub = 0;
 foreach ($items as $r) { $calcSub += ((float)$r['price']) * ((int)$r['qty']); }
 $subtotal = isset($o['subtotal']) && $o['subtotal']!==null ? (float)$o['subtotal'] : $calcSub;
@@ -94,6 +96,10 @@ if ($created) { $ts = strtotime($created); if ($ts) $created = date('Y-m-d H:i',
     <a class="btn btn-primary btn-sm" target="_blank" href="order_print.php?id=<?php echo (int)$o['id']; ?>">প্রিন্ট</a>
   </div>
 </div>
+
+<?php if (!empty($_SESSION['flash']) && isset($_SESSION['flash']['msg'])): $fl = $_SESSION['flash']; unset($_SESSION['flash']); ?>
+  <div class="alert <?php echo !empty($fl['ok']) ? 'alert-success' : 'alert-danger'; ?> py-2" id="ovFlash"><?php echo h($fl['msg']); ?></div>
+<?php endif; ?>
 
 <div class="row g-3">
   <!-- Customer -->
@@ -143,6 +149,10 @@ if ($created) { $ts = strtotime($created); if ($ts) $created = date('Y-m-d H:i',
 
           <dt class="col-5 col-sm-4">মোট</dt>
           <dd class="col-7 col-sm-8 fw-bold"><?php echo money_bd($total); ?></dd>
+<?php if (function_exists('can') && can('view_reports')): $ofit = fi_order_profits($pdo, [['id' => (int)$o['id'], 'total' => $total]])[(int)$o['id']] ?? null; ?>
+          <dt class="col-5 col-sm-4">লাভ</dt>
+          <dd class="col-7 col-sm-8" id="ovProfit"><?php if ($ofit && $ofit['profit'] !== null): ?><span class="fw-bold <?php echo $ofit['profit'] < 0 ? 'text-danger' : 'text-success'; ?>"><?php echo ($ofit['profit'] < 0 ? '&minus;' : '') . money_bd(abs($ofit['profit'])); ?></span> <span class="small text-muted">(মোট − ক্রয়মূল্য <?php echo money_bd($ofit['cost']); ?>)</span><?php else: ?><span class="text-muted">অজানা</span> <span class="small text-muted">(<?php echo (int)($ofit['unknown'] ?? 0); ?>টি আইটেমের ক্রয়মূল্য নেই)</span><?php endif; ?></dd>
+<?php endif; ?>
 
           <dt class="col-5 col-sm-4">পেমেন্ট</dt>
           <dd class="col-7 col-sm-8"><?php echo h(payment_method_label($o['payment_method'] ?? '')); ?></dd>
@@ -153,6 +163,34 @@ if ($created) { $ts = strtotime($created); if ($ts) $created = date('Y-m-d H:i',
     </div>
   </div>
 </div>
+
+<?php
+$cSent = sf_order_sent($o);
+$cReady = function_exists('can') && can('manage_courier') && sf_ready($pdo);
+if ($cSent || $cReady):
+  $cTrack = sf_tracking_url($o['courier_tracking_code'] ?? '');
+?>
+<div class="card mt-3" id="courierCard"><div class="card-body">
+  <h6 class="fw-bold mb-2">কুরিয়ার (Steadfast)</h6>
+  <?php if ($cSent): ?>
+  <dl class="row mini mb-2">
+    <dt class="col-5 col-sm-3">স্ট্যাটাস</dt><dd class="col-7 col-sm-9"><span class="badge <?php echo h(sf_status_class($o['courier_status'] ?? '')); ?>" id="courierStatus"><?php echo h(sf_status_label($o['courier_status'] ?? '')); ?></span></dd>
+    <dt class="col-5 col-sm-3">কনসাইনমেন্ট</dt><dd class="col-7 col-sm-9" id="courierCid"><?php echo h($o['courier_consignment_id']); ?></dd>
+    <dt class="col-5 col-sm-3">ট্র্যাকিং কোড</dt><dd class="col-7 col-sm-9" id="courierTrack"><?php if ($cTrack !== ''): ?><a href="<?php echo h($cTrack); ?>" target="_blank" rel="noopener"><?php echo h($o['courier_tracking_code']); ?></a><?php else: ?>—<?php endif; ?></dd>
+    <dt class="col-5 col-sm-3">পাঠানো</dt><dd class="col-7 col-sm-9"><?php echo h($o['courier_sent_at'] ?? '—'); ?></dd>
+    <dt class="col-5 col-sm-3">শেষ সিঙ্ক</dt><dd class="col-7 col-sm-9"><?php echo h($o['courier_synced_at'] ?? '—'); ?></dd>
+  </dl>
+  <?php if ($cReady): ?>
+  <form method="post" action="courier_action.php" class="d-inline"><?php echo csrf_field(); ?><input type="hidden" name="id" value="<?php echo (int)$o['id']; ?>"><input type="hidden" name="action" value="sync">
+    <button class="btn btn-outline-primary btn-sm" id="courierSync" type="submit"><i class="fa-solid fa-rotate"></i> স্ট্যাটাস মেলান</button></form>
+  <?php endif; ?>
+  <?php else: ?>
+  <p class="text-muted small mb-2">এই অর্ডার এখনো কুরিয়ারে পাঠানো হয়নি।<?php echo (strtoupper(trim((string)($o['payment_method'] ?? ''))) === 'COD') ? ' কুরিয়ার আদায় করবে: ' . money_bd($total) : ' অনলাইন পেমেন্ট — আদায় ৳0'; ?></p>
+  <form method="post" action="courier_action.php"><?php echo csrf_field(); ?><input type="hidden" name="id" value="<?php echo (int)$o['id']; ?>"><input type="hidden" name="action" value="send">
+    <button class="btn btn-success btn-sm" id="courierSend" type="submit" onclick="return confirm('অর্ডারটি এখন কুরিয়ারে পাঠানো হবে। নিশ্চিত?')"><i class="fa-solid fa-truck-fast"></i> কুরিয়ারে পাঠান</button></form>
+  <?php endif; ?>
+</div></div>
+<?php endif; ?>
 
 <!-- Items -->
 <div class="card mt-3">

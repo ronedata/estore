@@ -92,7 +92,7 @@
         // Fetching settings if available, else using default values
         // NOTE: Ensure your config.php and get_pdo() are accessible here.
         // For a true maintenance page, you might hardcode these values to avoid DB load.
-        $store_name = 'Toy BD'; // Default
+        $store_name = 'Online Shop'; // Default
         $store_email = 'info@starshop.com'; // Default
         // If DB is accessible:
         /*

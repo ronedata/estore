@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 <!doctype html><html lang="bn"><head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin Login - <?php echo APP_NAME; ?></title>
+  <title>Admin Login - <?php echo htmlspecialchars(admin_store_name(), ENT_QUOTES, 'UTF-8'); ?></title>
   <?php
     $loginFavicon = '';
     try {

@@ -3,6 +3,7 @@
 require_once __DIR__.'/../includes/config.php';
 require_once __DIR__.'/../includes/image_processor.php';
 require_once __DIR__.'/../includes/home_sections.php';
+require_once __DIR__.'/../includes/costs.php';
 require_once __DIR__.'/auth.php';
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 gate('manage_products'); // <-- পারমিশন চেক
@@ -202,6 +203,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['save_product'])){
   if ($badge_color !== '' && !preg_match('/^#[0-9a-f]{6}$/i', $badge_color)) $badge_color = '';
   $youtube_url = trim($_POST['youtube_url'] ?? '');
 
+  $costPosted = array_key_exists('cost_price', $_POST);
+  $costVal = $costPosted ? cs_parse_money($_POST['cost_price']) : null;
+  if ($costPosted && $costVal === false) {
+    $_SESSION['flash'] = ['ok' => false, 'msg' => 'ক্রয়মূল্য সঠিক নয় (০ বা ধনাত্মক সংখ্যা, অথবা ফাঁকা)। কিছুই সংরক্ষণ হয়নি।'];
+    header('Location: product_form.php' . ($pid > 0 ? '?id=' . $pid : '')); exit;
+  }
+
   // NEW: flags from checkboxes
   $flag_free = isset($_POST['flag_free']) ? 1 : 0;
   $flag_hot  = isset($_POST['flag_hot'])  ? 1 : 0;
@@ -230,6 +238,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['save_product'])){
 
     /* ---- হোম সেকশন সংযোগ (section_ids[] — যেকোনো ইনপুট নিরাপদে ফিল্টার হয়) ---- */
     hs_set_product_sections($pdo, $newId, $_POST['section_ids'] ?? []);
+    if ($costPosted) cs_set_product_cost($pdo, $newId, $costVal);
 
     /* ---- Images: multiple (images[]) ----
        প্রতিটি ছবি 700×700 বর্গাকারে প্রসেস হয়:
@@ -484,6 +493,13 @@ require_once __DIR__.'/header.php';
         <label class="form-label">স্টক</label>
         <input type="number" name="stock" class="form-control" required value="<?php echo h($fv['stock'] ?? '0'); ?>">
       </div>
+      <?php if (cs_has_column($pdo, 'products', 'cost_price')): ?>
+      <div class="col-md-3">
+        <label class="form-label">ক্রয়মূল্য (গড়)</label>
+        <input type="number" step="0.01" min="0" name="cost_price" id="costPrice" class="form-control" value="<?php echo h($fv['cost_price'] ?? ''); ?>" placeholder="ফাঁকা = অজানা">
+        <div class="form-text">প্রতি পিসের কেনা দাম। লাভের হিসাবে লাগে; ক্রয় এন্ট্রি দিলে নিজে গড় হবে।</div>
+      </div>
+      <?php endif; ?>
 
       <div class="col-md-6">
         <label class="form-label">ট্যাগ (কমা দিয়ে আলাদা)</label>

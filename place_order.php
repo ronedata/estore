@@ -3,6 +3,7 @@
 require_once __DIR__.'/includes/config.php';
 require_once __DIR__.'/includes/delivery.php';
 require_once __DIR__.'/includes/order_access.php';
+require_once __DIR__.'/includes/costs.php';
 $pdo = get_pdo();
 
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
@@ -211,6 +212,7 @@ try {
     $stm->execute([$order_id, $it['id'], $it['qty'], $it['price']]);
     $dec->execute([(int)$it['qty'], (int)$it['id']]);
   }
+  cs_snapshot_order($pdo, $order_id);
 
   // স্টক কাটা হয়েছে চিহ্নিত করুন (পরে ক্যান্সেলে ফেরত দেওয়ার জন্য)
   set_order_stock_flags($pdo, $order_id, 1, 0);

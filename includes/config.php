@@ -397,4 +397,20 @@ try { ensure_estore_schema_v11(get_pdo()); } catch (Throwable $e) { /* DB unavai
 require_once __DIR__ . '/schema_v12.php';
 try { ensure_estore_schema_v12(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
 
+// ---------- eStore V13 schema (view_reports permission) ----------
+require_once __DIR__ . '/schema_v13.php';
+try { ensure_estore_schema_v13(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
+
+// ---------- eStore V14 schema (products.cost_price, order_items.cost, expenses) ----------
+require_once __DIR__ . '/schema_v14.php';
+try { ensure_estore_schema_v14(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
+
+// ---------- eStore V15 schema (suppliers, purchases, purchase_items, purchase_payments) ----------
+require_once __DIR__ . '/schema_v15.php';
+try { ensure_estore_schema_v15(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
+
+// ---------- eStore V16 schema (courier columns, courier_logs, manage_courier; Steadfast বন্ধ অবস্থায়) ----------
+require_once __DIR__ . '/schema_v16.php';
+try { ensure_estore_schema_v16(get_pdo()); } catch (Throwable $e) { /* DB unavailable */ }
+
 ?>

@@ -8,6 +8,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 gate('manage_products_quick');
 
 $pdo = get_pdo();
+require_once __DIR__.'/../includes/costs.php';
 
 /* ------------ Local helpers (from product_form.php) ------------ */
 function pf_uploads_dir_abs(): string {
@@ -49,9 +50,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['save_product'])){
   $price  = (float)($_POST['price'] ?? 0);
   $cat_id = (int)($_POST['category_id'] ?? 0);
   $stock    = max(0, (int)($_POST['stock'] ?? 0));
+  $costPosted = array_key_exists('cost_price', $_POST);
+  $costVal = $costPosted ? cs_parse_money($_POST['cost_price']) : null;
   $badge_color = trim($_POST['badge_color'] ?? '');
   if ($badge_color !== '' && !preg_match('/^#[0-9a-f]{6}$/i', $badge_color)) $badge_color = '';
 
+  if ($costPosted && $costVal === false) {
+    $_SESSION['flash'] = ['ok'=>false,'msg'=>'ক্রয়মূল্য সঠিক নয় (০ বা ধনাত্মক সংখ্যা, অথবা ফাঁকা)।'];
+    header('Location: product_add_for_mobile.php'); exit;
+  }
   if (empty($name) || $price <= 0 || $cat_id <= 0) {
     $_SESSION['flash'] = ['ok'=>false,'msg'=>'পণ্যের নাম, মূল্য এবং ক্যাটেগরি আবশ্যক।'];
     header('Location: product_add_for_mobile.php'); exit;
@@ -61,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['save_product'])){
       $pdo->prepare("INSERT INTO products(name, price, category_id, stock, active, badge_color) VALUES(?,?,?,?,1,?)")
           ->execute([$name, $price, $cat_id, $stock, ($badge_color ?: null)]);
       $newId=(int)$pdo->lastInsertId();
+      if ($costPosted) cs_set_product_cost($pdo, $newId, $costVal);
 
       /* হোম সেকশন সংযোগ (section_ids[]) */
       hs_set_product_sections($pdo, $newId, $_POST['section_ids'] ?? []);
@@ -216,6 +224,13 @@ require_once __DIR__.'/header.php';
         <input type="number" min="0" name="stock" class="form-control" value="0">
         <div class="form-text">০ দিলে কার্ডে “স্টক নেই” দেখাবে।</div>
       </div>
+
+      <?php if (cs_has_column($pdo, 'products', 'cost_price')): ?>
+      <div class="col-12">
+        <label class="form-label">ক্রয়মূল্য (ঐচ্ছিক)</label>
+        <input type="number" step="0.01" min="0" name="cost_price" class="form-control" placeholder="ফাঁকা = অজানা">
+      </div>
+      <?php endif; ?>
 
       <div class="col-12" id="hsSectionToggles">
         <label class="form-label d-block mb-2">হোমপেজের কোন কোন সেকশনে দেখাবেন</label>

@@ -112,7 +112,7 @@ require_once __DIR__.'/header.php';
   <div class="col-md-6">
     <label class="form-label">শিরোনাম <span class="text-danger">*</span></label>
     <input class="form-control" name="title" maxlength="120" required value="<?php echo h($item['title']); ?>"
-           placeholder="যেমন: Hot Deals, ছেলেদের খেলনা">
+           placeholder="যেমন: Hot Deals, নতুন সংগ্রহ">
   </div>
 
   <div class="col-md-6">

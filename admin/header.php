@@ -63,7 +63,7 @@ function render_pagination(int $current_page, int $total_pages, array $params = 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin - <?php echo h(defined('APP_NAME') ? APP_NAME : 'Shop'); ?></title>
+  <title>Admin - <?php echo h(admin_store_name()); ?></title>
   <?php
     $adminFavicon = '';
     try {
@@ -74,6 +74,7 @@ function render_pagination(int $current_page, int $total_pages, array $params = 
     if ($adminFavicon === '') $adminFavicon = BASE_URL . '/assets/favicon.ico';
   ?>
   <link rel="icon" href="<?php echo h($adminFavicon); ?>">
+  <script>document.documentElement.classList.add('js');</script>
 
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -133,6 +134,23 @@ function render_pagination(int $current_page, int $total_pages, array $params = 
     .navy a:hover{ background:var(--sidebar-hover); color:#fff; }
     .navy a.active{ background:var(--sidebar-hover); color:var(--sidebar-active); }
 
+    /* মেনু-গ্রুপ (ভাঁজ-করা); JS না চললে সব খোলা থাকে */
+    .navy .nav-group{margin-bottom:4px}
+    .navy .nav-group-toggle{
+      width:100%; display:flex; align-items:center; gap:10px; background:transparent; border:0;
+      color:#94a3b8; padding:9px 12px; border-radius:10px; font-size:.78rem; text-transform:none;
+      letter-spacing:.2px; cursor:pointer; text-align:left;
+    }
+    .navy .nav-group-toggle:hover{ background:var(--sidebar-hover); color:#fff; }
+    .navy .nav-group-toggle .ng-icon{ width:1.25em; text-align:center; font-size:.95rem; }
+    .navy .nav-group-toggle .ng-label{ flex:1; font-weight:700; }
+    .navy .nav-group-toggle .ng-caret{ font-size:.7rem; transition:transform .2s ease; }
+    .navy .nav-group.open > .nav-group-toggle .ng-caret{ transform:rotate(180deg); }
+    .navy .nav-group.has-active > .nav-group-toggle{ color:#fff; }
+    .navy .nav-group-body{ padding-left:6px; border-left:1px solid rgba(148,163,184,.25); margin-left:18px; }
+    .navy .nav-group-body a{ padding:8px 10px; margin-bottom:3px; font-weight:500; font-size:.92rem; }
+    .js .navy .nav-group:not(.open) > .nav-group-body{ display:none; }
+
     /* Mobile: sidebar becomes offcanvas-like */
     @media(max-width:992px){
       .layout{ grid-template-columns:1fr; }
@@ -175,167 +193,89 @@ function render_pagination(int $current_page, int $total_pages, array $params = 
   <aside class="sidebar">
     <a class="brand" href="<?php echo BASE_URL; ?>/admin/index.php">
       <i class="fa-solid fa-star"></i>
-      <span><?php echo h(defined('APP_NAME') ? APP_NAME : 'Shop'); ?></span>
+      <span id="adminBrandName"><?php echo h(admin_store_name()); ?></span>
     </a>
 
-    <nav class="navy">
-      <?php if (can('view_dashboard')): ?>
-        <a class="<?php echo is_active('index.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/index.php">
-          <i class="fa-solid fa-gauge-high"></i>
-          <span>ড্যাশবোর্ড</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_products')): ?>
-        <a class="<?php echo is_active(['products.php','product_form.php']); ?>"
-           href="<?php echo BASE_URL; ?>/admin/products.php">
-          <i class="fa-solid fa-boxes-stacked"></i>
-          <span>পণ্য ব্যবস্থাপনা</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_products_quick')): ?>
-        <a class="<?php echo is_active('product_add_for_mobile.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/product_add_for_mobile.php">
-          <i class="fa-solid fa-mobile-screen-button"></i>
-          <span>দ্রুত পণ্য যোগ</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_categories')): ?>
-        <a class="<?php echo is_active('categories.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/categories.php">
-          <i class="fa-solid fa-tags"></i>
-          <span>ক্যাটেগরি</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_sliders')): ?>
-        <a class="<?php echo is_active(['sliders.php','slider_form.php']); ?>"
-           href="<?php echo BASE_URL; ?>/admin/sliders.php">
-          <i class="fa-solid fa-images"></i>
-          <span>স্লাইডার</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_home_sections')): ?>
-        <a class="<?php echo is_active(['home_sections.php','home_section_form.php']); ?>"
-           href="<?php echo BASE_URL; ?>/admin/home_sections.php">
-          <i class="fa-solid fa-table-cells-large"></i>
-          <span>হোম সেকশন</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_announcements')): ?>
-        <a class="<?php echo is_active(['announcements.php','announcement_form.php']); ?>"
-           href="<?php echo BASE_URL; ?>/admin/announcements.php">
-          <i class="fa-solid fa-bullhorn"></i>
-          <span>ঘোষণা</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_reviews')): ?>
-        <a class="<?php echo is_active('reviews.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/reviews.php">
-          <i class="fa-solid fa-star-half-stroke"></i>
-          <span>রিভিউ</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_customers')): ?>
-        <a class="<?php echo is_active('customers.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/customers.php">
-          <i class="fa-solid fa-user-group"></i>
-          <span>কাস্টমার</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_pages')): ?>
-        <a class="<?php echo is_active('pages.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/pages.php">
-          <i class="fa-solid fa-file-lines"></i>
-          <span>পেজ</span>
-        </a>
-        <a class="<?php echo is_active('messages.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/messages.php">
-          <i class="fa-solid fa-envelope"></i>
-          <span>মেসেজ</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (($_SESSION['admin_role_name'] ?? '') === 'Super Admin'): ?>
-        <a class="<?php echo is_active('security.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/security.php">
-          <i class="fa-solid fa-shield-halved"></i>
-          <span>সিকিউরিটি</span>
-        </a>
-        <a class="<?php echo is_active('login_security.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/login_security.php">
-          <i class="fa-solid fa-user-lock"></i>
-          <span>লগইন সুরক্ষা</span>
-        </a>
-        <a class="<?php echo is_active('backup.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/backup.php">
-          <i class="fa-solid fa-cloud-arrow-down"></i>
-          <span>ব্যাকআপ</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('view_page_views')): ?>
-        <a class="<?php echo is_active('page_views.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/page_views.php">
-          <i class="fa-solid fa-chart-simple"></i>
-          <span>Page Views</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_orders')): ?>
-        <a class="<?php echo is_active(['orders.php','order_view.php','order_print.php']); ?>"
-           href="<?php echo BASE_URL; ?>/admin/orders.php">
-          <i class="fa-solid fa-list-check"></i>
-          <span>অর্ডার ব্যবস্থাপনা</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_admin_users')): ?>
-        <a class="<?php echo is_active(['users.php', 'roles.php', 'role_form.php']); ?>"
-           href="<?php echo BASE_URL; ?>/admin/users.php">
-          <i class="fa-solid fa-users-gear"></i>
-          <span>ইউজার ও রোল</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('view_stock_report')): ?>
-        <a class="<?php echo is_active('stock_report.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/stock_report.php">
-          <i class="fa-solid fa-warehouse"></i>
-          <span>স্টক রিপোর্ট</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('payments')): ?>
-        <a class="<?php echo is_active('payments.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/payments.php">
-          <i class="fa-solid fa-credit-card"></i>
-          <span>পেমেন্ট</span>
-        </a>
-      <?php endif; ?>
-
-      <?php if (can('manage_delivery')): ?>
-        <a class="<?php echo is_active('delivery.php'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/delivery.php">
-          <i class="fa-solid fa-truck-fast"></i>
-          <span>ডেলিভারি চার্জ</span>
-        </a>
-      <?php endif; ?>
-      <?php if (can('settings')): ?>
-        <a class="<?php echo is_active('settings'); ?>"
-           href="<?php echo BASE_URL; ?>/admin/settings.php">
-          <i class="fa-solid fa-gear"></i>
-          <span>সেটিংস</span>
-        </a>
-      <?php endif; ?>
+    <nav class="navy" id="adminNav">
+      <?php
+      /* মেনু-গ্রুপ: can = পারমিশন (বা 'super' = শুধু Super Admin); files = সক্রিয় মেনুর ফাইল-তালিকা */
+      $isSuperAdmin = (($_SESSION['admin_role_name'] ?? '') === 'Super Admin');
+      $NAV_GROUPS = [
+        ['key' => 'main', 'label' => null, 'icon' => '', 'items' => [
+          ['can' => 'view_dashboard', 'files' => ['index.php'], 'href' => 'index.php', 'icon' => 'fa-gauge-high', 'label' => 'ড্যাশবোর্ড'],
+        ]],
+        ['key' => 'sales', 'label' => 'বিক্রয়', 'icon' => 'fa-cart-shopping', 'items' => [
+          ['can' => 'manage_orders', 'files' => ['orders.php','order_view.php','order_print.php','order_edit.php'], 'href' => 'orders.php', 'icon' => 'fa-list-check', 'label' => 'অর্ডার ব্যবস্থাপনা'],
+          ['can' => 'payments', 'files' => ['payments.php'], 'href' => 'payments.php', 'icon' => 'fa-credit-card', 'label' => 'পেমেন্ট'],
+          ['can' => 'manage_delivery', 'files' => ['delivery.php'], 'href' => 'delivery.php', 'icon' => 'fa-truck-fast', 'label' => 'ডেলিভারি চার্জ'],
+          ['can' => 'manage_courier', 'files' => ['courier.php'], 'href' => 'courier.php', 'icon' => 'fa-truck-fast', 'label' => 'কুরিয়ার'],
+          ['can' => 'manage_customers', 'files' => ['customers.php'], 'href' => 'customers.php', 'icon' => 'fa-user-group', 'label' => 'কাস্টমার'],
+          ['can' => 'manage_reviews', 'files' => ['reviews.php'], 'href' => 'reviews.php', 'icon' => 'fa-star-half-stroke', 'label' => 'রিভিউ'],
+          ['can' => 'manage_pages', 'files' => ['messages.php'], 'href' => 'messages.php', 'icon' => 'fa-envelope', 'label' => 'মেসেজ'],
+        ]],
+        ['key' => 'catalog', 'label' => 'পণ্য ও ক্যাটালগ', 'icon' => 'fa-boxes-stacked', 'items' => [
+          ['can' => 'manage_products', 'files' => ['products.php','product_form.php'], 'href' => 'products.php', 'icon' => 'fa-boxes-stacked', 'label' => 'পণ্য ব্যবস্থাপনা'],
+          ['can' => 'manage_products_quick', 'files' => ['product_add_for_mobile.php'], 'href' => 'product_add_for_mobile.php', 'icon' => 'fa-mobile-screen-button', 'label' => 'দ্রুত পণ্য যোগ'],
+          ['can' => 'manage_categories', 'files' => ['categories.php'], 'href' => 'categories.php', 'icon' => 'fa-tags', 'label' => 'ক্যাটেগরি'],
+        ]],
+        ['key' => 'accounts', 'label' => 'ক্রয় ও হিসাব', 'icon' => 'fa-scale-balanced', 'items' => [
+          ['can' => 'manage_purchases', 'files' => ['purchases.php','purchase_form.php','purchase_view.php'], 'href' => 'purchases.php', 'icon' => 'fa-cart-flatbed', 'label' => 'ক্রয়'],
+          ['can' => 'manage_purchases', 'files' => ['suppliers.php','supplier_view.php'], 'href' => 'suppliers.php', 'icon' => 'fa-truck-ramp-box', 'label' => 'সরবরাহকারী'],
+          ['can' => 'manage_expenses', 'files' => ['expenses.php'], 'href' => 'expenses.php', 'icon' => 'fa-wallet', 'label' => 'খরচ'],
+          ['can' => 'view_stock_report', 'files' => ['stock_report.php'], 'href' => 'stock_report.php', 'icon' => 'fa-warehouse', 'label' => 'স্টক রিপোর্ট'],
+        ]],
+        ['key' => 'reports', 'label' => 'রিপোর্ট', 'icon' => 'fa-chart-line', 'items' => [
+          ['can' => 'view_reports', 'files' => ['report_orders.php','report_profit.php','report_purchases.php','report_expenses.php'], 'href' => 'report_orders.php', 'icon' => 'fa-chart-line', 'label' => 'বিক্রয় রিপোর্ট'],
+          ['can' => 'view_page_views', 'files' => ['page_views.php'], 'href' => 'page_views.php', 'icon' => 'fa-chart-simple', 'label' => 'Page Views'],
+        ]],
+        ['key' => 'site', 'label' => 'সাইট সাজানো', 'icon' => 'fa-palette', 'items' => [
+          ['can' => 'manage_sliders', 'files' => ['sliders.php','slider_form.php'], 'href' => 'sliders.php', 'icon' => 'fa-images', 'label' => 'স্লাইডার'],
+          ['can' => 'manage_home_sections', 'files' => ['home_sections.php','home_section_form.php'], 'href' => 'home_sections.php', 'icon' => 'fa-table-cells-large', 'label' => 'হোম সেকশন'],
+          ['can' => 'manage_announcements', 'files' => ['announcements.php','announcement_form.php'], 'href' => 'announcements.php', 'icon' => 'fa-bullhorn', 'label' => 'ঘোষণা'],
+          ['can' => 'manage_pages', 'files' => ['pages.php'], 'href' => 'pages.php', 'icon' => 'fa-file-lines', 'label' => 'পেজ'],
+        ]],
+        ['key' => 'system', 'label' => 'সিস্টেম', 'icon' => 'fa-gear', 'items' => [
+          ['can' => 'settings', 'files' => ['settings.php'], 'href' => 'settings.php', 'icon' => 'fa-gear', 'label' => 'সেটিংস'],
+          ['can' => 'manage_admin_users', 'files' => ['users.php','roles.php','role_form.php','permissions.php','permission_form.php'], 'href' => 'users.php', 'icon' => 'fa-users-gear', 'label' => 'ইউজার ও রোল'],
+          ['can' => 'super', 'files' => ['login_security.php'], 'href' => 'login_security.php', 'icon' => 'fa-user-lock', 'label' => 'লগইন সুরক্ষা'],
+          ['can' => 'super', 'files' => ['security.php'], 'href' => 'security.php', 'icon' => 'fa-shield-halved', 'label' => 'সিকিউরিটি'],
+          ['can' => 'super', 'files' => ['backup.php'], 'href' => 'backup.php', 'icon' => 'fa-cloud-arrow-down', 'label' => 'ব্যাকআপ'],
+        ]],
+      ];
+      foreach ($NAV_GROUPS as $grp):
+        $vis = [];
+        foreach ($grp['items'] as $it) {
+          $okAccess = $it['can'] === 'super' ? $isSuperAdmin : can($it['can']);
+          if ($okAccess) $vis[] = $it;
+        }
+        if (!$vis) continue;
+        $hasActive = false;
+        foreach ($vis as $it) if (in_array($SELF, $it['files'], true)) { $hasActive = true; break; }
+        if ($grp['label'] === null):
+          foreach ($vis as $it): ?>
+      <a class="<?php echo is_active($it['files']); ?>" href="<?php echo BASE_URL; ?>/admin/<?php echo h($it['href']); ?>">
+        <i class="fa-solid <?php echo h($it['icon']); ?>"></i>
+        <span><?php echo h($it['label']); ?></span>
+      </a>
+          <?php endforeach;
+        else: ?>
+      <div class="nav-group<?php echo $hasActive ? ' open has-active' : ''; ?>" data-group="<?php echo h($grp['key']); ?>">
+        <button type="button" class="nav-group-toggle" aria-expanded="<?php echo $hasActive ? 'true' : 'false'; ?>" aria-controls="ng-<?php echo h($grp['key']); ?>">
+          <i class="fa-solid <?php echo h($grp['icon']); ?> ng-icon"></i>
+          <b class="ng-label"><?php echo h($grp['label']); ?></b>
+          <i class="fa-solid fa-chevron-down ng-caret"></i>
+        </button>
+        <div class="nav-group-body" id="ng-<?php echo h($grp['key']); ?>">
+          <?php foreach ($vis as $it): ?>
+          <a class="<?php echo is_active($it['files']); ?>" href="<?php echo BASE_URL; ?>/admin/<?php echo h($it['href']); ?>">
+            <i class="fa-solid <?php echo h($it['icon']); ?>"></i>
+            <span><?php echo h($it['label']); ?></span>
+          </a>
+          <?php endforeach; ?>
+        </div>
+      </div>
+        <?php endif;
+      endforeach; ?>
       <hr class="border-secondary">
 
       <a href="<?php echo BASE_URL; ?>/admin/logout.php">
@@ -344,6 +284,26 @@ function render_pagination(int $current_page, int $total_pages, array $params = 
       </a>
     </nav>
   </aside>
+
+  <script>
+  (function(){
+    var KEY = 'adminNavOpen';
+    var nav = document.getElementById('adminNav');
+    if (!nav) return;
+    var saved = [];
+    try { saved = JSON.parse(localStorage.getItem(KEY) || '[]'); if (!Array.isArray(saved)) saved = []; } catch (e) { saved = []; }
+    nav.querySelectorAll('.nav-group').forEach(function(g){
+      if (saved.indexOf(g.dataset.group) !== -1) { g.classList.add('open'); g.querySelector('.nav-group-toggle').setAttribute('aria-expanded', 'true'); }
+      g.querySelector('.nav-group-toggle').addEventListener('click', function(){
+        var open = g.classList.toggle('open');
+        this.setAttribute('aria-expanded', open ? 'true' : 'false');
+        var now = [];
+        nav.querySelectorAll('.nav-group.open').forEach(function(x){ if (!x.classList.contains('has-active')) now.push(x.dataset.group); });
+        try { localStorage.setItem(KEY, JSON.stringify(now)); } catch (e) {}
+      });
+    });
+  })();
+  </script>
 
   <!-- Backdrop for mobile -->
   <div id="sidebarBackdrop" class="backdrop d-lg-none"></div>

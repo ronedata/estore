@@ -19,6 +19,7 @@ if (!function_exists('permission_label')) {
       'manage_sliders'       => ['label' => 'স্লাইডার',              'icon' => 'fa-images',            'group' => 'ক্যাটালগ'],
       'manage_home_sections' => ['label' => 'হোম সেকশন',             'icon' => 'fa-table-cells-large', 'group' => 'ক্যাটালগ'],
       'manage_announcements' => ['label' => 'ঘোষণা',                  'icon' => 'fa-bullhorn',          'group' => 'ক্যাটালগ'],
+      'manage_courier'       => ['label' => 'কুরিয়ার',                'icon' => 'fa-truck-fast',        'group' => 'বিক্রয়'],
       'manage_delivery'      => ['label' => 'ডেলিভারি চার্জ',          'icon' => 'fa-truck-fast',        'group' => 'বিক্রয়'],
       'manage_reviews'       => ['label' => 'রিভিউ',                'icon' => 'fa-star-half-stroke',  'group' => 'কনটেন্ট'],
       'manage_customers'     => ['label' => 'কাস্টমার',              'icon' => 'fa-user-group',        'group' => 'কনটেন্ট'],
@@ -27,6 +28,9 @@ if (!function_exists('permission_label')) {
       'manage_orders'        => ['label' => 'অর্ডার ব্যবস্থাপনা',    'icon' => 'fa-list-check',        'group' => 'বিক্রয়'],
       'manage_admin_users'   => ['label' => 'ইউজার ও রোল',           'icon' => 'fa-users-gear',        'group' => 'সিস্টেম'],
       'view_stock_report'    => ['label' => 'স্টক রিপোর্ট',          'icon' => 'fa-warehouse',         'group' => 'রিপোর্ট'],
+      'manage_purchases'     => ['label' => 'ক্রয়',                   'icon' => 'fa-cart-flatbed',      'group' => 'রিপোর্ট'],
+      'manage_expenses'      => ['label' => 'খরচ',                   'icon' => 'fa-wallet',            'group' => 'রিপোর্ট'],
+      'view_reports'         => ['label' => 'বিক্রয় রিপোর্ট',        'icon' => 'fa-chart-line',        'group' => 'রিপোর্ট'],
       'payments'             => ['label' => 'পেমেন্ট',               'icon' => 'fa-credit-card',       'group' => 'বিক্রয়'],
       'settings'             => ['label' => 'সেটিংস',                'icon' => 'fa-gear',              'group' => 'সিস্টেম'],
     ];

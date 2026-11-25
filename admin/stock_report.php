@@ -3,6 +3,7 @@
 // CSV এক্সপোর্ট/কুয়েরি প্রসেসিং HTML আউটপুটের আগে—তাই header.php পরে রিকোয়ার হবে
 require_once __DIR__.'/auth.php';
 require_once __DIR__.'/../includes/config.php';
+require_once __DIR__.'/../includes/costs.php';
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 gate('view_stock_report'); // <-- পারমিশন চেক
 
@@ -59,7 +60,8 @@ if ($sort === 'value_desc') $order = "(p.stock * p.price) DESC";
 $whereSql = implode(' AND ', $where);
 
 /* ---------- Fetch data ---------- */
-$sql = "SELECT p.id, p.name, p.price, p.stock, p.active, c.name AS cat_name,
+$hasCost = cs_has_column($pdo, 'products', 'cost_price');
+$sql = "SELECT p.id, p.name, p.price, p.stock, p.active, " . ($hasCost ? 'p.cost_price' : 'NULL AS cost_price') . ", c.name AS cat_name,
         (SELECT image FROM product_images pi WHERE pi.product_id=p.id ORDER BY sort_order, id LIMIT 1) AS image
         FROM products p
         LEFT JOIN categories c ON c.id = p.category_id
@@ -74,14 +76,25 @@ $totalSku   = 0;
 $totalUnits = 0;
 $totalValue = 0.0;
 $lowCount   = 0;
+$totalCostValue = 0.0;
 
 foreach ($rows as $r){
   $totalSku++;
   $units = (int)$r['stock'];
   $totalUnits += $units;
   $totalValue += $units * (float)$r['price'];
+  if ($r['cost_price'] !== null) $totalCostValue += $units * (float)$r['cost_price'];
   if ($units <= $low) $lowCount++;
 }
+
+/* ---------- সব পণ্যের ইনভেন্টরি (ফিল্টার-নিরপেক্ষ) ---------- */
+$inv = ['retail' => 0.0, 'retail_known' => 0.0, 'cost' => 0.0, 'nocost' => 0, 'units' => 0, 'skus' => 0];
+try {
+  $iv = $pdo->query("SELECT COUNT(*), COALESCE(SUM(stock),0), COALESCE(SUM(stock*price),0), " .
+    ($hasCost ? "COALESCE(SUM(CASE WHEN cost_price IS NOT NULL THEN stock*cost_price END),0), COALESCE(SUM(stock>0 AND cost_price IS NULL),0), COALESCE(SUM(CASE WHEN cost_price IS NOT NULL THEN stock*price END),0)" : "0, COALESCE(SUM(stock>0),0), 0") .
+    " FROM products")->fetch(PDO::FETCH_NUM);
+  $inv = ['skus' => (int)$iv[0], 'units' => (int)$iv[1], 'retail' => (float)$iv[2], 'cost' => (float)$iv[3], 'nocost' => (int)$iv[4], 'retail_known' => (float)$iv[5]];
+} catch (Throwable $e) {}
 
 /* ---------- CSV export (HTML আউটপুটের আগে) ---------- */
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
@@ -91,7 +104,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
   $out = fopen('php://output', 'w');
   // UTF-8 BOM (Excel friendly)
   fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
-  fputcsv($out, ['ID','নাম','ক্যাটেগরি','দাম','স্টক','ভ্যালু','স্ট্যাটাস']);
+  fputcsv($out, ['ID','নাম','ক্যাটেগরি','দাম','স্টক','ভ্যালু','ক্রয়মূল্য','ক্রয়-ভ্যালু','স্ট্যাটাস']);
   foreach ($rows as $r){
     $value = (int)$r['stock'] * (float)$r['price'];
     fputcsv($out, [
@@ -101,11 +114,13 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
       $r['price'],
       $r['stock'],
       $value,
+      $r['cost_price'] === null ? '' : $r['cost_price'],
+      $r['cost_price'] === null ? '' : (int)$r['stock'] * (float)$r['cost_price'],
       ($r['active'] ? 'Active' : 'Inactive'),
     ]);
   }
   // Totals
-  fputcsv($out, ['মোট', '', '', '', $totalUnits, $totalValue, 'SKU: '.$totalSku]);
+  fputcsv($out, ['মোট', '', '', '', $totalUnits, $totalValue, '', $totalCostValue, 'SKU: '.$totalSku]);
   fclose($out);
   exit;
 }
@@ -167,28 +182,36 @@ require_once __DIR__.'/header.php';
     <div class="col-6 col-md-3">
       <div class="metric">
         <div class="label">মোট পণ্য (SKU)</div>
-        <div class="value"><?=h(number_format($totalSku))?></div>
+        <div class="value" id="mSku"><?=h(number_format($totalSku))?></div>
       </div>
     </div>
     <div class="col-6 col-md-3">
       <div class="metric">
         <div class="label">মোট ইউনিট</div>
-        <div class="value"><?=h(number_format($totalUnits))?></div>
+        <div class="value" id="mUnits"><?=h(number_format($totalUnits))?></div>
       </div>
     </div>
     <div class="col-6 col-md-3">
       <div class="metric">
-        <div class="label">ইনভেন্টরি ভ্যালু</div>
-        <div class="value"><?=h(money_bd_safe($totalValue))?></div>
+        <div class="label">ভ্যালু (বিক্রয়মূল্যে)</div>
+        <div class="value" id="mRetail"><?=h(money_bd_safe($totalValue))?></div>
       </div>
     </div>
     <div class="col-6 col-md-3">
       <div class="metric" style="background:#7c2d12">
         <div class="label">লো-স্টক (≤ <?=h($low)?>)</div>
-        <div class="value"><?=h(number_format($lowCount))?></div>
+        <div class="value" id="mLow"><?=h(number_format($lowCount))?></div>
       </div>
     </div>
   </div>
+  <div class="small text-muted mt-3 mb-1">সব পণ্যের ইনভেন্টরি (ফিল্টার ছাড়া)</div>
+  <div class="row g-2" id="invRow">
+    <div class="col-6 col-md-3"><div class="metric" style="background:#14532d"><div class="label">স্টকের মূল্য (ক্রয়মূল্যে)</div><div class="value" id="invCost"><?=h(money_bd_safe($inv['cost']))?></div></div></div>
+    <div class="col-6 col-md-3"><div class="metric" style="background:#1e3a8a"><div class="label">স্টকের মূল্য (বিক্রয়মূল্যে)</div><div class="value" id="invRetail"><?=h(money_bd_safe($inv['retail']))?></div></div></div>
+    <div class="col-6 col-md-3"><div class="metric" style="background:#4c1d95"><div class="label">সম্ভাব্য লাভ (স্টক বিক্রি হলে)</div><div class="value" id="invProfit"><?=h(money_bd_safe($inv['retail_known'] - $inv['cost']))?></div></div></div>
+    <div class="col-6 col-md-3"><div class="metric" style="background:<?= $inv['nocost'] > 0 ? '#7c2d12' : '#374151' ?>"><div class="label">ক্রয়মূল্য অজানা (স্টকসহ পণ্য)</div><div class="value" id="invNoCost"><?=h(number_format($inv['nocost']))?></div></div></div>
+  </div>
+  <?php if ($inv['nocost'] > 0): ?><div class="form-text" id="invNote">"সম্ভাব্য লাভ" শুধু যেসব পণ্যের ক্রয়মূল্য জানা আছে তাদের হিসাব; ক্রয়মূল্য অজানা পণ্য এতে ধরা হয়নি। পণ্য এডিটে ক্রয়মূল্য দিন।</div><?php endif; ?>
 </div>
 
 <!-- Filters -->
@@ -254,6 +277,8 @@ require_once __DIR__.'/header.php';
             <th class="text-end">দাম</th>
             <th class="text-end">স্টক</th>
             <th class="text-end">ভ্যালু</th>
+            <th class="text-end">ক্রয়মূল্য</th>
+            <th class="text-end">ক্রয়-ভ্যালু</th>
             <th>স্ট্যাটাস</th>
           </tr>
         </thead>
@@ -275,6 +300,8 @@ require_once __DIR__.'/header.php';
             <td data-label="দাম" class="text-end"><?= h(money_bd_safe($r['price'])) ?></td>
             <td data-label="স্টক" class="text-end"><?= (int)$r['stock'] ?></td>
             <td data-label="ভ্যালু" class="text-end"><?= h(money_bd_safe($value)) ?></td>
+            <td data-label="ক্রয়মূল্য" class="text-end"><?= $r['cost_price'] === null ? '<span class="text-muted">—</span>' : h(money_bd_safe($r['cost_price'])) ?></td>
+            <td data-label="ক্রয়-ভ্যালু" class="text-end"><?= $r['cost_price'] === null ? '<span class="text-muted">—</span>' : h(money_bd_safe((int)$r['stock'] * (float)$r['cost_price'])) ?></td>
 
             <!-- ✅ Active/Inactive টগল (POST + CSRF) -->
             <td data-label="স্ট্যাটাস">
@@ -298,6 +325,8 @@ require_once __DIR__.'/header.php';
             <th class="text-end">—</th>
             <th class="text-end"><?= h(number_format($totalUnits)) ?></th>
             <th class="text-end"><?= h(money_bd_safe($totalValue)) ?></th>
+            <th class="text-end">—</th>
+            <th class="text-end"><?= h(money_bd_safe($totalCostValue)) ?></th>
             <th>SKU: <?= h(number_format($totalSku)) ?></th>
           </tr>
         </tfoot>

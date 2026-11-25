@@ -3,6 +3,8 @@
 require_once __DIR__.'/../includes/config.php';
 require_once __DIR__.'/../includes/delivery.php';
 require_once __DIR__.'/../includes/order_discount.php';
+require_once __DIR__.'/../includes/costs.php';
+require_once __DIR__.'/../includes/steadfast.php';
 require_once __DIR__ . '/auth.php';
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 gate('manage_orders');
@@ -96,6 +98,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save']) || isset($_P
 
   if ($totalItems < 1) $err = 'অর্ডার সেভ করার জন্য অন্তত একটি আইটেম থাকতে হবে।';
 
+  if ($err === '' && sf_order_sent($o) && ($lockedCh = sf_locked_changes($pdo, $o, $_POST))) {
+    $err = 'অর্ডারটি কুরিয়ারে পাঠানো হয়েছে, তাই এগুলো বদলানো যাবে না: ' . implode(', ', $lockedCh);
+  }
+
   if ($err !== '') {
     $_SESSION['flash'] = ['ok'=>false,'message'=>$err];
     header('Location: order_edit.php?id='.$id.'&return='.urlencode($returnQS)); exit;
@@ -187,6 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save']) || isset($_P
           stock_deduct_item($pdo, (int)$pid, $q);
         }
         $ins->execute([$id, $pid, $q, $price]);
+        cs_snapshot_items($pdo, [(int)$pdo->lastInsertId()]);
       }
     }
 

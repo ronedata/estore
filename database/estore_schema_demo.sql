@@ -1,8 +1,9 @@
--- eStore: কাঠামো (সব ২৭টি টেবিল) + ডেমো ডেটা (পণ্য, ক্যাটেগরি, স্লাইডার, পেজ, হোম সেকশন, সেটিংস, জেলা-ভিত্তিক ডেলিভারি চার্জ, রোল/পারমিশন)।
--- গ্রাহক, অর্ডার, মেসেজ, রিভিউ, অ্যাডমিন ইউজার, page_views, store_phone/store_email বাদ — ব্যক্তিগত তথ্য নেই।
+-- eStore: কাঠামো (সব ৩৩টি টেবিল) + ডেমো ডেটা (পণ্য, ক্যাটেগরি, স্লাইডার, পেজ, হোম সেকশন, সেটিংস, জেলা-ভিত্তিক ডেলিভারি চার্জ, রোল/পারমিশন)।
+-- গ্রাহক, অর্ডার, মেসেজ, রিভিউ, অ্যাডমিন ইউজার, page_views, ক্রয়/সরবরাহকারী/খরচ/কুরিয়ার-লগ, store_phone/store_email, কুরিয়ার API কী বাদ — ব্যক্তিগত তথ্য নেই।
 -- ইমপোর্ট: খালি ডাটাবেসে। সতর্কতা: DROP TABLE IF EXISTS আছে, চালু ডাটাবেসে চালাবেন না।
 -- অ্যাডমিন ইউজার নেই: admin_users-এ নিজে একটি সারি যোগ করুন (password_hash() দিয়ে), role Super Admin।
--- নতুন মাইগ্রেশন (v8 ঘোষণা, v9 ডেলিভারি, v10 ডিসকাউন্ট, v11 লগইন সুরক্ষা, v12 অর্ডার গোপন কোড) এই ডাম্পেই অন্তর্ভুক্ত; ইমপোর্টের পর এগুলো আবার চলে না।
+-- মাইগ্রেশন v2–v16 এই ডাম্পেই অন্তর্ভুক্ত (v13 রিপোর্ট, v14 ক্রয়মূল্য/খরচ, v15 ক্রয়/সরবরাহকারী, v16 কুরিয়ার — কুরিয়ার বন্ধ অবস্থায়); ইমপোর্টের পর এগুলো আবার চলে না।
+
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -87,6 +88,24 @@ CREATE TABLE `contact_messages` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+DROP TABLE IF EXISTS `courier_logs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `courier_logs` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `order_id` int(11) DEFAULT NULL,
+  `action` varchar(20) NOT NULL,
+  `ok` tinyint(1) NOT NULL DEFAULT 0,
+  `http_code` int(11) DEFAULT NULL,
+  `message` varchar(255) DEFAULT NULL,
+  `created_by` varchar(60) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_order` (`order_id`),
+  KEY `idx_time` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 DROP TABLE IF EXISTS `customers`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -121,6 +140,25 @@ CREATE TABLE `delivery_districts` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 INSERT INTO `delivery_districts` VALUES (1,'ঢাকা','ঢাকা','Dhaka',60.00,1),(2,'ঢাকা','ফরিদপুর','Faridpur',NULL,2),(3,'ঢাকা','গাজীপুর','Gazipur',NULL,3),(4,'ঢাকা','গোপালগঞ্জ','Gopalganj',NULL,4),(5,'ঢাকা','কিশোরগঞ্জ','Kishoreganj',NULL,5),(6,'ঢাকা','মাদারীপুর','Madaripur',NULL,6),(7,'ঢাকা','মানিকগঞ্জ','Manikganj',NULL,7),(8,'ঢাকা','মুন্সিগঞ্জ','Munshiganj',NULL,8),(9,'ঢাকা','নারায়ণগঞ্জ','Narayanganj',NULL,9),(10,'ঢাকা','নরসিংদী','Narsingdi',NULL,10),(11,'ঢাকা','রাজবাড়ী','Rajbari',NULL,11),(12,'ঢাকা','শরীয়তপুর','Shariatpur',NULL,12),(13,'ঢাকা','টাঙ্গাইল','Tangail',NULL,13),(14,'চট্টগ্রাম','বান্দরবান','Bandarban',NULL,14),(15,'চট্টগ্রাম','ব্রাহ্মণবাড়িয়া','Brahmanbaria',NULL,15),(16,'চট্টগ্রাম','চাঁদপুর','Chandpur',NULL,16),(17,'চট্টগ্রাম','চট্টগ্রাম','Chattogram',NULL,17),(18,'চট্টগ্রাম','কুমিল্লা','Cumilla',NULL,18),(19,'চট্টগ্রাম','কক্সবাজার','Cox\'s Bazar',NULL,19),(20,'চট্টগ্রাম','ফেনী','Feni',NULL,20),(21,'চট্টগ্রাম','খাগড়াছড়ি','Khagrachhari',NULL,21),(22,'চট্টগ্রাম','লক্ষ্মীপুর','Lakshmipur',NULL,22),(23,'চট্টগ্রাম','নোয়াখালী','Noakhali',NULL,23),(24,'চট্টগ্রাম','রাঙ্গামাটি','Rangamati',NULL,24),(25,'রাজশাহী','বগুড়া','Bogura',NULL,25),(26,'রাজশাহী','জয়পুরহাট','Joypurhat',NULL,26),(27,'রাজশাহী','নওগাঁ','Naogaon',NULL,27),(28,'রাজশাহী','নাটোর','Natore',NULL,28),(29,'রাজশাহী','চাঁপাইনবাবগঞ্জ','Chapainawabganj',NULL,29),(30,'রাজশাহী','পাবনা','Pabna',NULL,30),(31,'রাজশাহী','রাজশাহী','Rajshahi',NULL,31),(32,'রাজশাহী','সিরাজগঞ্জ','Sirajganj',NULL,32),(33,'খুলনা','বাগেরহাট','Bagerhat',NULL,33),(34,'খুলনা','চুয়াডাঙ্গা','Chuadanga',NULL,34),(35,'খুলনা','যশোর','Jashore',NULL,35),(36,'খুলনা','ঝিনাইদহ','Jhenaidah',NULL,36),(37,'খুলনা','খুলনা','Khulna',NULL,37),(38,'খুলনা','কুষ্টিয়া','Kushtia',NULL,38),(39,'খুলনা','মাগুরা','Magura',NULL,39),(40,'খুলনা','মেহেরপুর','Meherpur',NULL,40),(41,'খুলনা','নড়াইল','Narail',NULL,41),(42,'খুলনা','সাতক্ষীরা','Satkhira',NULL,42),(43,'বরিশাল','বরগুনা','Barguna',NULL,43),(44,'বরিশাল','বরিশাল','Barishal',NULL,44),(45,'বরিশাল','ভোলা','Bhola',NULL,45),(46,'বরিশাল','ঝালকাঠি','Jhalokathi',NULL,46),(47,'বরিশাল','পটুয়াখালী','Patuakhali',NULL,47),(48,'বরিশাল','পিরোজপুর','Pirojpur',NULL,48),(49,'সিলেট','হবিগঞ্জ','Habiganj',NULL,49),(50,'সিলেট','মৌলভীবাজার','Moulvibazar',NULL,50),(51,'সিলেট','সুনামগঞ্জ','Sunamganj',NULL,51),(52,'সিলেট','সিলেট','Sylhet',NULL,52),(53,'রংপুর','দিনাজপুর','Dinajpur',NULL,53),(54,'রংপুর','গাইবান্ধা','Gaibandha',NULL,54),(55,'রংপুর','কুড়িগ্রাম','Kurigram',NULL,55),(56,'রংপুর','লালমনিরহাট','Lalmonirhat',NULL,56),(57,'রংপুর','নীলফামারী','Nilphamari',NULL,57),(58,'রংপুর','পঞ্চগড়','Panchagarh',NULL,58),(59,'রংপুর','রংপুর','Rangpur',NULL,59),(60,'রংপুর','ঠাকুরগাঁও','Thakurgaon',NULL,60),(61,'ময়মনসিংহ','জামালপুর','Jamalpur',NULL,61),(62,'ময়মনসিংহ','ময়মনসিংহ','Mymensingh',NULL,62),(63,'ময়মনসিংহ','নেত্রকোণা','Netrokona',NULL,63),(64,'ময়মনসিংহ','শেরপুর','Sherpur',NULL,64);
+DROP TABLE IF EXISTS `expenses`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `expenses` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `title` varchar(160) NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `expense_date` date NOT NULL,
+  `category` varchar(60) DEFAULT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `created_by` varchar(60) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_date` (`expense_date`),
+  KEY `idx_category` (`category`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 DROP TABLE IF EXISTS `home_section_products`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -194,6 +232,7 @@ CREATE TABLE `order_items` (
   `product_id` int(11) NOT NULL,
   `qty` int(11) NOT NULL,
   `price` decimal(10,2) NOT NULL,
+  `cost` decimal(12,2) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `order_id` (`order_id`),
   KEY `product_id` (`product_id`),
@@ -227,9 +266,15 @@ CREATE TABLE `orders` (
   `stock_deducted` tinyint(1) NOT NULL DEFAULT 0,
   `stock_returned` tinyint(1) NOT NULL DEFAULT 0,
   `public_token` char(32) DEFAULT NULL,
+  `courier_consignment_id` varchar(40) DEFAULT NULL,
+  `courier_tracking_code` varchar(60) DEFAULT NULL,
+  `courier_status` varchar(40) DEFAULT NULL,
+  `courier_sent_at` datetime DEFAULT NULL,
+  `courier_synced_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `order_code` (`order_code`),
-  UNIQUE KEY `uq_public_token` (`public_token`)
+  UNIQUE KEY `uq_public_token` (`public_token`),
+  KEY `idx_courier_cid` (`courier_consignment_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -288,10 +333,10 @@ CREATE TABLE `permissions` (
   `description` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=39 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=68 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO `permissions` VALUES (1,'view_dashboard','Can view the admin dashboard'),(2,'manage_products','Can add, edit, and delete products'),(3,'manage_products_quick','Can use the quick product add page'),(4,'manage_categories','Can manage product categories'),(5,'manage_orders','Can view and manage orders'),(6,'manage_admin_users','Can manage admin users and roles'),(7,'view_stock_report','Can view the stock report'),(8,'settings','Can change store settings'),(10,'payments','Can manage payments'),(11,'manage_sliders','Can manage hero sliders and side banners'),(12,'manage_reviews','Can moderate product reviews'),(13,'manage_customers','Can view and manage customers'),(14,'manage_pages','Can edit static pages (about, privacy, terms, contact)'),(15,'view_page_views','Can view page views report'),(19,'manage_home_sections','Can manage homepage sections (add, remove, reorder, product count)'),(22,'manage_announcements','Can manage announcement bar and popup'),(27,'manage_delivery','Can manage district-wise delivery charges');
+INSERT INTO `permissions` VALUES (1,'view_dashboard','Can view the admin dashboard'),(2,'manage_products','Can add, edit, and delete products'),(3,'manage_products_quick','Can use the quick product add page'),(4,'manage_categories','Can manage product categories'),(5,'manage_orders','Can view and manage orders'),(6,'manage_admin_users','Can manage admin users and roles'),(7,'view_stock_report','Can view the stock report'),(8,'settings','Can change store settings'),(10,'payments','Can manage payments'),(11,'manage_sliders','Can manage hero sliders and side banners'),(12,'manage_reviews','Can moderate product reviews'),(13,'manage_customers','Can view and manage customers'),(14,'manage_pages','Can edit static pages (about, privacy, terms, contact)'),(15,'view_page_views','Can view page views report'),(19,'manage_home_sections','Can manage homepage sections (add, remove, reorder, product count)'),(22,'manage_announcements','Can manage announcement bar and popup'),(27,'manage_delivery','Can manage district-wise delivery charges'),(39,'view_reports','Can view sales and order reports'),(44,'manage_expenses','Can add, edit and delete expenses'),(50,'manage_purchases','Can manage suppliers, purchases and supplier payments'),(59,'manage_courier','Can configure the courier connection and send orders to the courier');
 DROP TABLE IF EXISTS `product_images`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -303,10 +348,10 @@ CREATE TABLE `product_images` (
   PRIMARY KEY (`id`),
   KEY `product_id` (`product_id`),
   CONSTRAINT `product_images_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=168 DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB AUTO_INCREMENT=350 DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO `product_images` VALUES (6,14,'/uploads/product_14_1755693827_0.jpg',0),(24,22,'/uploads/product_22_1756020718_0.jpg',0),(91,54,'/uploads/product_54_1756207179_img0.jpg',0),(92,55,'/uploads/product_55_1759994173_img0.png',0),(93,55,'/uploads/product_55_1760156564_img0.jpg',0),(149,13,'/uploads/products_image/product_13_1793614024_img0.jpg',0),(153,11,'/uploads/products_image/product_11_1793614099_img0.jpg',0),(154,10,'/uploads/products_image/product_10_1793614766_img0.png',0),(155,1,'/uploads/products_image/product_1_1793614801_img0.jpg',0),(156,2,'/uploads/products_image/product_2_1793614813_img0.jpg',0),(157,3,'/uploads/products_image/product_3_1793614825_img0.jpg',0),(167,98,'/uploads/products_image/default.jpg',0);
+INSERT INTO `product_images` VALUES (6,14,'/uploads/product_14_1755693827_0.jpg',0),(24,22,'/uploads/product_22_1756020718_0.jpg',0),(91,54,'/uploads/product_54_1756207179_img0.jpg',0),(92,55,'/uploads/product_55_1759994173_img0.png',0),(93,55,'/uploads/product_55_1760156564_img0.jpg',0),(149,13,'/uploads/products_image/product_13_1793614024_img0.jpg',0),(153,11,'/uploads/products_image/product_11_1793614099_img0.jpg',0),(154,10,'/uploads/products_image/product_10_1793614766_img0.png',0),(155,1,'/uploads/products_image/product_1_1793614801_img0.jpg',0),(156,2,'/uploads/products_image/product_2_1793614813_img0.jpg',0),(157,3,'/uploads/products_image/product_3_1793614825_img0.jpg',0),(205,98,'/uploads/products_image/product_98_1794307657_img0.jpg',0);
 DROP TABLE IF EXISTS `product_reviews`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -364,14 +409,71 @@ CREATE TABLE `products` (
   `is_featured` tinyint(1) NOT NULL DEFAULT 0,
   `badge_color` varchar(20) DEFAULT NULL,
   `is_new_arrival` tinyint(1) NOT NULL DEFAULT 1,
+  `cost_price` decimal(12,2) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `category_id` (`category_id`),
   KEY `idx_products_stock` (`stock`),
   CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=106 DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB AUTO_INCREMENT=989 DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO `products` VALUES (1,1,'ক্লাসিক টি-শার্ট',NULL,'১০০% কটন, আরামদায়ক।',450.00,520.00,120,'','','/uploads/products_image/product_1_1793614801_img0.jpg',1,'2025-08-19 04:22:16',0,0,'#ff5252',1),(2,2,'ওয়্যারলেস ইয়ারবাড',NULL,'ব্লুটুথ ৫.০, ২০ ঘন্টা ব্যাটারি।',1650.00,NULL,45,'','','/uploads/products_image/product_2_1793614813_img0.jpg',1,'2025-08-19 04:22:16',0,0,'#ff5252',1),(3,3,'স্মার্টফোন কেস',NULL,'শকপ্রুফ প্রটেকশন।',250.00,300.00,200,'','','/uploads/products_image/product_3_1793614825_img0.jpg',1,'2025-08-19 04:22:16',0,0,'#ff5252',1),(4,1,'কটন হুডি',NULL,'শীতের জন্য উষ্ণ, নরম।',890.00,NULL,75,NULL,NULL,'uploads/hoodie.jpg',1,'2025-08-19 04:22:16',0,0,NULL,1),(5,3,'Kelsie Flynn',NULL,'Quisquam cupiditate',5000.00,NULL,1,NULL,NULL,'uploads/p_1755597731_3944.jpg',1,'2025-08-19 10:02:11',0,0,NULL,1),(10,2,'Justin Hansen',NULL,'Eum nihil rerum aliq',508.00,526.00,66,'','','/uploads/products_image/product_10_1793614766_img0.png',1,'2025-08-19 10:07:01',0,0,'#ff5252',1),(11,1,'sagar',NULL,'প্রিলিমিনারি, লিখিত ও মৌখিক পরীক্ষা শেষে চাকরিতে নিয়োগের জন্য প্রাথমিকভাবে নির্বাচিত হন আশরাফুল ইসলাম। তালিকার শুরুর রোল নম্বরটিই তাঁর। তবে শেষ পর্যন্ত তিনি নিয়োগপত্র পাননি।\r\n\r\nসাধারণ বীমা করপোরেশনে জুনিয়র অফিসার (গ্রেড-১০) পদে নিয়োগের জন্য প্রাথমিকভাবে নির্বাচিত মোট ৬৭ প্রার্থীর এই তালিকা গত ১৫ জানুয়ারি প্রকাশিত হয়।',2500.00,NULL,0,'','রাষ্ট্রদূত জানান, ব্রাজিল কম মূল্যে বাংলাদেশে প্রাণীজ আমিষ বিশেষ করে গরুর মাংস রফতানি করতে প্রস্তুত। তার দাবি, ব্রাজিল থেকে গরুর মাংস আমদানি করা গেলে কেজি প্রতি দাম মাত্র এক ডলার অর্থাৎ ১২০ থেকে ১২৫ টাকার মধ্যে পাওয়া যাবে। তবে এ প্রক্রিয়া এগিয়ে নিতে বাংলাদেশের পক্ষ থেকে দ্রুত হালাল সার্টিফিকেট প্রদান জরুরি। এতে শুধু রফতানি বাড়বে না, বরং ব্রাজিলের বেসরকারি উদ্যোক্তারা বাংলাদেশের উদ্যোক্তাদের সাথে অংশীদারিত্বে কাজ করতে আরও আগ্রহী হবে।','/uploads/products_image/product_11_1793614099_img0.jpg',1,'2025-08-20 06:26:54',0,0,'#ff5252',1),(13,3,'Inez Brewer',NULL,'শ্রমিকদের বিক্ষোভের কারণে অপ্রীতিকর ঘটনা এড়াতে জেলার বিভিন্ন এলাকার ৫০টি তৈরি পোশাক কারখানায় আজ ছুটি ঘোষণা করেছে কর্তৃপক্ষ। এতে এসব কারখানার শ্রমিকেরা কাজে যোগ দিতে পারেননি।\r\n\r\nশিল্প পুলিশ ও স্থানীয় সূত্রে জানা যায়, সকাল সাড়ে ৯টার দিকে মহানগরের নাওজোড় এলাকায় প্যানিসিয়া লিমিটেডের শ্রমিকেরা কারখানা থেকে বের হয়ে মহাসড়কের উড়ালসড়কের পশ্চিম পাশে অবস্থান নেন। পরে বাঁশ দিয়ে প্রতিবন্ধকতা তৈরি করে মহাসড়ক অবরোধ করেন তাঁরা। এতে মহাসড়কের উভয় পাশে যানবাহন চলাচল বন্ধ হয়ে যায়। একই সময়ে কোনাবাড়ী, মৌচাক ও তেলিচালা এলাকার কয়েকটি কারখানার শ্রমিকেরাও কাজ বন্ধ করে সড়কে বেরিয়ে আসেন।',347.00,721.00,39,'Earum, saepe, volupt','ন্যূনতম মজুরি ৩০ হাজার টাকা করার দাবিতে গাজীপুরে আজ মঙ্গলবার সকাল সাড়ে নয়টার দিকে ঢাকা–টাঙ্গাইল মহাসড়ক অবরোধ করে বিক্ষোভ করছেন পোশাকশ্রমিকেরা। এ ছাড়া জেলার বিভিন্ন এলাকায় শ্রমিকদের বিক্ষোভ করার খবর পাওয়া গেছে।\r\n\r\nসকাল সাড়ে ৯টার দিকে গাজীপুর মহানগরের নাওজোড় এলাকায় ঢাকা-টাঙ্গাইল মহাসড়কে অবস্থান নেন শ্রমিকেরা। তাঁদের অনেকের হাতে লাঠিসোঁটা দেখা গেছে। এতে মহাসড়কের ওই অংশে যান চলাচল বন্ধ হয়ে যায়। ভোগান্তিতে পড়েন দূরপাল্লার বাসসহ বিভিন্ন যানবাহনের যাত্রীরা।','/uploads/products_image/product_13_1793614024_img0.jpg',1,'2025-08-20 12:37:30',0,0,'#ff5252',1),(14,3,'Seth Frost',NULL,'Sed quidem voluptate',873.00,326.00,65,'Adipisci explicabo','Rerum sit velit est','/uploads/product_14_1755693827_0.jpg',1,'2025-08-20 12:43:47',0,0,NULL,1),(22,1,'Julian Pennington qw',NULL,'Velit ex cupiditate',750.00,192.00,0,'Consequatur At eius','Repudiandae tempore 11','/uploads/product_22_1756020718_0.jpg',1,'2025-08-24 07:31:58',0,0,NULL,1),(54,1,'Hedda Michael',NULL,'',82.00,0.00,9,'','','/uploads/product_54_1756207179_img0.jpg',1,'2025-08-26 11:19:39',0,0,NULL,0),(55,1,'Remote Control Car with LED Light | 360° রোটেটিং আরসি রিমোট কন্ট্রোল কার উইথ এলইডি লাইট (র‍্যান্ডম কালার))',NULL,'Tempore aperiam sin',629.00,990.00,83,'In optio voluptas e, Free Shipping, Hot','Veniam ipsum vel v','/uploads/product_55_1759994173_img0.png',1,'2025-10-09 07:16:13',0,0,'#ff5252',1),(87,1,'বাচ্চাদের কটন টি-শার্ট','SEED-KTSHIRT','নরম ১০০% কটন, বাচ্চাদের ত্বকের জন্য নিরাপদ। ২–১০ বছরের জন্য উপলব্ধ।',450.00,620.00,60,'Cotton, Kids, Summer',NULL,'/uploads/products_image/seed_ktshirt_20261105102641_d267be.jpg',1,'2026-11-05 04:26:41',0,1,'#ff5252',1),(88,1,'কিডস ডেনিম জ্যাকেট','SEED-KDENIM','স্ট্রেচেবল ডেনিম, ভেতরে নরম লাইনিং। শীতের জন্য আরামদায়ক।',1250.00,1650.00,35,'Denim, Winter, Free Shipping',NULL,'/uploads/products_image/seed_kdenim_20261105102641_541560.jpg',1,'2026-11-05 04:26:42',0,1,'#2196f3',1),(89,1,'বেবি কটন প্যান্ট','SEED-KPANT','ইলাস্টিক কোমর, আরামদায়ক ফিট। ১–৫ বছরের বাচ্চাদের জন্য।',380.00,NULL,80,'Cotton, Baby, Daily',NULL,'/uploads/products_image/seed_kpant_20261105102642_acb6e2.jpg',1,'2026-11-05 04:26:42',0,0,'#4caf50',1),(90,1,'বাচ্চাদের হুডি','SEED-KHOODIE','মোটা ফ্লিস ভেতরের হুডি, ঠান্ডায় উষ্ণ থাকার জন্য।',890.00,1150.00,45,'Hoodie, Winter, Kids',NULL,'/uploads/products_image/seed_khoodie_20261105102642_a7111c.jpg',1,'2026-11-05 04:26:43',0,1,'#ff9800',0),(91,2,'রিমোট কন্ট্রোল কার','SEED-RCCAR','রিচার্জেবল ব্যাটারি, ২.৪GHz রিমোট, ২০ মিটার রেঞ্জ। ৩+ বয়সের জন্য।',1490.00,1990.00,24,'RC, Toy Car, Free Shipping, Hot',NULL,'/uploads/products_image/seed_rccar_20261105102643_b9fe1c.jpg',1,'2026-11-05 04:26:43',0,1,'#e91e63',1),(92,2,'মিনি রোবট টয়','SEED-ROBOT','LED চোখ, সাউন্ড ইফেক্ট, হাত-পা নড়ে। ব্যাটারি Included নয়।',2100.00,2600.00,18,'Robot, LED, Toy',NULL,'/uploads/products_image/seed_robot_20261105102643_8aea98.jpg',1,'2026-11-05 04:26:43',0,1,'#9c27b0',1),(93,2,'টয় ইলেকট্রনিক পিয়ানো','SEED-PIANO','৩৭ কি, ডেমো মিউজিক, রেকর্ড ও প্লে। শিশুর সংগীত শেখার জন্য।',950.00,1250.00,40,'Music, Piano, Kids',NULL,'/uploads/products_image/seed_piano_20261105102643_0cb8e2.jpg',1,'2026-11-05 04:26:44',0,0,'#00bcd4',1),(94,2,'কিডস টর্চ লাইট','SEED-TORCH','ছোট হাতের জন্য উপযোগী, উজ্জ্বল LED, ব্যাটারি সহ।',320.00,NULL,55,'LED, Torch, Utility',NULL,'/uploads/products_image/seed_torch_20261105102644_c4e869.jpg',1,'2026-11-05 04:26:44',0,0,'#ff5722',1),(95,3,'কিডস স্মার্ট ওয়াচ','SEED-WATCH','ডিজিটাল ডিসপ্লে, জলরোধী, স্টেপ কাউন্টার ও অ্যালার্ম।',1800.00,2250.00,22,'Watch, Digital, Free Shipping',NULL,'/uploads/products_image/seed_watch_20261105102644_b46943.jpg',1,'2026-11-05 04:26:45',0,1,'#0284c7',1),(96,3,'বাচ্চাদের সানগ্লাস','SEED-SUNGAN','UV400 প্রোটেকশন, ফ্লেক্সিবল ফ্রেম — সহজে ভাঙে না।',290.00,380.00,65,'Sunglasses, UV, Kids',NULL,'/uploads/products_image/seed_sungan_20261105102645_01b5c4.jpg',1,'2026-11-05 04:26:45',0,0,'#f59e0b',1),(97,3,'মিনি স্কুল ব্যাকপ্যাক','SEED-BAG','হালকা ওয়াটার-রেজিস্ট্যান্ট ফ্যাব্রিক, দুই পাশে বোতল পকেট।',750.00,950.00,50,'Backpack, School, Kids',NULL,'/uploads/products_image/seed_bag_20261105102645_582041.jpg',1,'2026-11-05 04:26:45',0,1,'#16a34a',0),(98,3,'কিডস ওয়াটার বোতল','SEED-BOTTLE','BPA-মুক্ত প্লাস্টিক, লিক-প্রুফ ঢাকনা, ৫০০ মিলি।',420.00,NULL,60,'Bottle, BPA Free, Kids','','/uploads/products_image/default.jpg',1,'2026-11-05 04:26:46',0,0,'#8b5cf6',1);
+INSERT INTO `products` VALUES (1,1,'ক্লাসিক টি-শার্ট',NULL,'১০০% কটন, আরামদায়ক।',450.00,520.00,120,'','','/uploads/products_image/product_1_1793614801_img0.jpg',1,'2025-08-19 04:22:16',0,0,'#ff5252',1,NULL),(2,2,'ওয়্যারলেস ইয়ারবাড',NULL,'ব্লুটুথ ৫.০, ২০ ঘন্টা ব্যাটারি।',1650.00,NULL,45,'','','/uploads/products_image/product_2_1793614813_img0.jpg',1,'2025-08-19 04:22:16',0,0,'#ff5252',1,NULL),(3,3,'স্মার্টফোন কেস',NULL,'শকপ্রুফ প্রটেকশন।',250.00,300.00,200,'','','/uploads/products_image/product_3_1793614825_img0.jpg',1,'2025-08-19 04:22:16',0,0,'#ff5252',1,NULL),(4,1,'কটন হুডি',NULL,'শীতের জন্য উষ্ণ, নরম।',890.00,NULL,75,NULL,NULL,'uploads/hoodie.jpg',1,'2025-08-19 04:22:16',0,0,NULL,1,NULL),(5,3,'Kelsie Flynn',NULL,'Quisquam cupiditate',5000.00,NULL,1,NULL,NULL,'uploads/p_1755597731_3944.jpg',1,'2025-08-19 10:02:11',0,0,NULL,1,NULL),(10,2,'Justin Hansen',NULL,'Eum nihil rerum aliq',508.00,526.00,66,'','','/uploads/products_image/product_10_1793614766_img0.png',1,'2025-08-19 10:07:01',0,0,'#ff5252',1,NULL),(11,1,'sagar',NULL,'প্রিলিমিনারি, লিখিত ও মৌখিক পরীক্ষা শেষে চাকরিতে নিয়োগের জন্য প্রাথমিকভাবে নির্বাচিত হন আশরাফুল ইসলাম। তালিকার শুরুর রোল নম্বরটিই তাঁর। তবে শেষ পর্যন্ত তিনি নিয়োগপত্র পাননি।\r\n\r\nসাধারণ বীমা করপোরেশনে জুনিয়র অফিসার (গ্রেড-১০) পদে নিয়োগের জন্য প্রাথমিকভাবে নির্বাচিত মোট ৬৭ প্রার্থীর এই তালিকা গত ১৫ জানুয়ারি প্রকাশিত হয়।',2500.00,NULL,0,'','রাষ্ট্রদূত জানান, ব্রাজিল কম মূল্যে বাংলাদেশে প্রাণীজ আমিষ বিশেষ করে গরুর মাংস রফতানি করতে প্রস্তুত। তার দাবি, ব্রাজিল থেকে গরুর মাংস আমদানি করা গেলে কেজি প্রতি দাম মাত্র এক ডলার অর্থাৎ ১২০ থেকে ১২৫ টাকার মধ্যে পাওয়া যাবে। তবে এ প্রক্রিয়া এগিয়ে নিতে বাংলাদেশের পক্ষ থেকে দ্রুত হালাল সার্টিফিকেট প্রদান জরুরি। এতে শুধু রফতানি বাড়বে না, বরং ব্রাজিলের বেসরকারি উদ্যোক্তারা বাংলাদেশের উদ্যোক্তাদের সাথে অংশীদারিত্বে কাজ করতে আরও আগ্রহী হবে।','/uploads/products_image/product_11_1793614099_img0.jpg',1,'2025-08-20 06:26:54',0,0,'#ff5252',1,NULL),(13,3,'Inez Brewer',NULL,'শ্রমিকদের বিক্ষোভের কারণে অপ্রীতিকর ঘটনা এড়াতে জেলার বিভিন্ন এলাকার ৫০টি তৈরি পোশাক কারখানায় আজ ছুটি ঘোষণা করেছে কর্তৃপক্ষ। এতে এসব কারখানার শ্রমিকেরা কাজে যোগ দিতে পারেননি।\r\n\r\nশিল্প পুলিশ ও স্থানীয় সূত্রে জানা যায়, সকাল সাড়ে ৯টার দিকে মহানগরের নাওজোড় এলাকায় প্যানিসিয়া লিমিটেডের শ্রমিকেরা কারখানা থেকে বের হয়ে মহাসড়কের উড়ালসড়কের পশ্চিম পাশে অবস্থান নেন। পরে বাঁশ দিয়ে প্রতিবন্ধকতা তৈরি করে মহাসড়ক অবরোধ করেন তাঁরা। এতে মহাসড়কের উভয় পাশে যানবাহন চলাচল বন্ধ হয়ে যায়। একই সময়ে কোনাবাড়ী, মৌচাক ও তেলিচালা এলাকার কয়েকটি কারখানার শ্রমিকেরাও কাজ বন্ধ করে সড়কে বেরিয়ে আসেন।',347.00,721.00,39,'Earum, saepe, volupt','ন্যূনতম মজুরি ৩০ হাজার টাকা করার দাবিতে গাজীপুরে আজ মঙ্গলবার সকাল সাড়ে নয়টার দিকে ঢাকা–টাঙ্গাইল মহাসড়ক অবরোধ করে বিক্ষোভ করছেন পোশাকশ্রমিকেরা। এ ছাড়া জেলার বিভিন্ন এলাকায় শ্রমিকদের বিক্ষোভ করার খবর পাওয়া গেছে।\r\n\r\nসকাল সাড়ে ৯টার দিকে গাজীপুর মহানগরের নাওজোড় এলাকায় ঢাকা-টাঙ্গাইল মহাসড়কে অবস্থান নেন শ্রমিকেরা। তাঁদের অনেকের হাতে লাঠিসোঁটা দেখা গেছে। এতে মহাসড়কের ওই অংশে যান চলাচল বন্ধ হয়ে যায়। ভোগান্তিতে পড়েন দূরপাল্লার বাসসহ বিভিন্ন যানবাহনের যাত্রীরা।','/uploads/products_image/product_13_1793614024_img0.jpg',1,'2025-08-20 12:37:30',0,0,'#ff5252',1,NULL),(14,3,'Seth Frost',NULL,'Sed quidem voluptate',873.00,326.00,65,'Adipisci explicabo','Rerum sit velit est','/uploads/product_14_1755693827_0.jpg',1,'2025-08-20 12:43:47',0,0,NULL,1,NULL),(22,1,'Julian Pennington qw',NULL,'Velit ex cupiditate',750.00,192.00,0,'Consequatur At eius','Repudiandae tempore 11','/uploads/product_22_1756020718_0.jpg',1,'2025-08-24 07:31:58',0,0,NULL,1,NULL),(54,1,'Hedda Michael',NULL,'',82.00,0.00,9,'','','/uploads/product_54_1756207179_img0.jpg',1,'2025-08-26 11:19:39',0,0,NULL,0,NULL),(55,1,'Remote Control Car with LED Light | 360° রোটেটিং আরসি রিমোট কন্ট্রোল কার উইথ এলইডি লাইট (র‍্যান্ডম কালার))',NULL,'Tempore aperiam sin',629.00,990.00,83,'In optio voluptas e, Free Shipping, Hot','Veniam ipsum vel v','/uploads/product_55_1759994173_img0.png',1,'2025-10-09 07:16:13',0,0,'#ff5252',1,NULL),(87,1,'বাচ্চাদের কটন টি-শার্ট','SEED-KTSHIRT','নরম ১০০% কটন, বাচ্চাদের ত্বকের জন্য নিরাপদ। ২–১০ বছরের জন্য উপলব্ধ।',450.00,620.00,60,'Cotton, Kids, Summer',NULL,'/uploads/products_image/seed_ktshirt_20261105102641_d267be.jpg',1,'2026-11-05 04:26:41',0,1,'#ff5252',1,NULL),(88,1,'কিডস ডেনিম জ্যাকেট','SEED-KDENIM','স্ট্রেচেবল ডেনিম, ভেতরে নরম লাইনিং। শীতের জন্য আরামদায়ক।',1250.00,1650.00,35,'Denim, Winter, Free Shipping',NULL,'/uploads/products_image/seed_kdenim_20261105102641_541560.jpg',1,'2026-11-05 04:26:42',0,1,'#2196f3',1,NULL),(89,1,'বেবি কটন প্যান্ট','SEED-KPANT','ইলাস্টিক কোমর, আরামদায়ক ফিট। ১–৫ বছরের বাচ্চাদের জন্য।',380.00,NULL,80,'Cotton, Baby, Daily',NULL,'/uploads/products_image/seed_kpant_20261105102642_acb6e2.jpg',1,'2026-11-05 04:26:42',0,0,'#4caf50',1,NULL),(90,1,'বাচ্চাদের হুডি','SEED-KHOODIE','মোটা ফ্লিস ভেতরের হুডি, ঠান্ডায় উষ্ণ থাকার জন্য।',890.00,1150.00,45,'Hoodie, Winter, Kids',NULL,'/uploads/products_image/seed_khoodie_20261105102642_a7111c.jpg',1,'2026-11-05 04:26:43',0,1,'#ff9800',0,NULL),(91,2,'রিমোট কন্ট্রোল কার','SEED-RCCAR','রিচার্জেবল ব্যাটারি, ২.৪GHz রিমোট, ২০ মিটার রেঞ্জ। ৩+ বয়সের জন্য।',1490.00,1990.00,24,'RC, Toy Car, Free Shipping, Hot',NULL,'/uploads/products_image/seed_rccar_20261105102643_b9fe1c.jpg',1,'2026-11-05 04:26:43',0,1,'#e91e63',1,NULL),(92,2,'মিনি রোবট টয়','SEED-ROBOT','LED চোখ, সাউন্ড ইফেক্ট, হাত-পা নড়ে। ব্যাটারি Included নয়।',2100.00,2600.00,18,'Robot, LED, Toy',NULL,'/uploads/products_image/seed_robot_20261105102643_8aea98.jpg',1,'2026-11-05 04:26:43',0,1,'#9c27b0',1,NULL),(93,2,'টয় ইলেকট্রনিক পিয়ানো','SEED-PIANO','৩৭ কি, ডেমো মিউজিক, রেকর্ড ও প্লে। শিশুর সংগীত শেখার জন্য।',950.00,1250.00,40,'Music, Piano, Kids',NULL,'/uploads/products_image/seed_piano_20261105102643_0cb8e2.jpg',1,'2026-11-05 04:26:44',0,0,'#00bcd4',1,NULL),(94,2,'কিডস টর্চ লাইট','SEED-TORCH','ছোট হাতের জন্য উপযোগী, উজ্জ্বল LED, ব্যাটারি সহ।',320.00,NULL,55,'LED, Torch, Utility',NULL,'/uploads/products_image/seed_torch_20261105102644_c4e869.jpg',1,'2026-11-05 04:26:44',0,0,'#ff5722',1,NULL),(95,3,'কিডস স্মার্ট ওয়াচ','SEED-WATCH','ডিজিটাল ডিসপ্লে, জলরোধী, স্টেপ কাউন্টার ও অ্যালার্ম।',1800.00,2250.00,21,'Watch, Digital, Free Shipping',NULL,'/uploads/products_image/seed_watch_20261105102644_b46943.jpg',1,'2026-11-05 04:26:45',0,1,'#0284c7',1,NULL),(96,3,'বাচ্চাদের সানগ্লাস','SEED-SUNGAN','UV400 প্রোটেকশন, ফ্লেক্সিবল ফ্রেম — সহজে ভাঙে না।',290.00,380.00,61,'Sunglasses, UV, Kids',NULL,'/uploads/products_image/seed_sungan_20261105102645_01b5c4.jpg',1,'2026-11-05 04:26:45',0,0,'#f59e0b',1,NULL),(97,3,'মিনি স্কুল ব্যাকপ্যাক','SEED-BAG','হালকা ওয়াটার-রেজিস্ট্যান্ট ফ্যাব্রিক, দুই পাশে বোতল পকেট।',750.00,950.00,50,'Backpack, School, Kids',NULL,'/uploads/products_image/seed_bag_20261105102645_582041.jpg',1,'2026-11-05 04:26:45',0,1,'#16a34a',0,NULL),(98,3,'কিডস ওয়াটার বোতল','SEED-BOTTLE','BPA-মুক্ত প্লাস্টিক, লিক-প্রুফ ঢাকনা, ৫০০ মিলি।',420.00,NULL,60,'Bottle, BPA Free, Kids','','/uploads/products_image/product_98_1794307657_img0.jpg',1,'2026-11-05 04:26:46',0,0,'#8b5cf6',1,NULL);
+DROP TABLE IF EXISTS `purchase_items`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `purchase_items` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `purchase_id` int(10) unsigned NOT NULL,
+  `product_id` int(11) DEFAULT NULL,
+  `product_name` varchar(255) NOT NULL,
+  `qty` int(11) NOT NULL,
+  `unit_cost` decimal(12,2) NOT NULL,
+  `line_total` decimal(12,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_purchase` (`purchase_id`),
+  KEY `idx_product` (`product_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+DROP TABLE IF EXISTS `purchase_payments`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `purchase_payments` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `purchase_id` int(10) unsigned NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `paid_date` date NOT NULL,
+  `method` varchar(30) DEFAULT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `created_by` varchar(60) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_purchase` (`purchase_id`),
+  KEY `idx_date` (`paid_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+DROP TABLE IF EXISTS `purchases`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `purchases` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `supplier_id` int(10) unsigned NOT NULL,
+  `invoice_no` varchar(60) DEFAULT NULL,
+  `purchase_date` date NOT NULL,
+  `total` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `note` varchar(255) DEFAULT NULL,
+  `status` varchar(10) NOT NULL DEFAULT 'active',
+  `created_by` varchar(60) DEFAULT NULL,
+  `cancelled_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_supplier` (`supplier_id`),
+  KEY `idx_date` (`purchase_date`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 DROP TABLE IF EXISTS `role_permissions`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -385,7 +487,7 @@ CREATE TABLE `role_permissions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO `role_permissions` VALUES (1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,11),(1,12),(1,13),(1,14),(1,15),(1,19),(1,22),(1,27);
+INSERT INTO `role_permissions` VALUES (1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,11),(1,12),(1,13),(1,14),(1,15),(1,19),(1,22),(1,27),(1,39),(1,44),(1,50),(1,59);
 DROP TABLE IF EXISTS `roles`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -409,7 +511,7 @@ CREATE TABLE `settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO `settings` VALUES ('animations_enabled','0'),('cod_note','সারা দেশে ক্যাশ অন ডেলিভারি প্রযোজ্য।'),('delivery_dhaka','0'),('delivery_global','120'),('delivery_nationwide','0'),('discount_show_product','0'),('featured_subtitle','আপনার জন্য বাছাই করা সেরা পণ্য'),('featured_title','Featured Products'),('hero_autoplay_ms','2500'),('home_heading','হোম পেজ শিরোনাম'),('home_layout',''),('home_notice','বাংলাদেশের সেরা অনলাইন শপিং প্ল্যাটফর্ম। ক্যাশ অন ডেলিভারি সুবিধা সহ।'),('info1_sub','৩–৫ দিনের মধ্যে'),('info1_title','দ্রুত ডেলিভারি'),('info2_sub','পণ্য হাতে পেয়ে পেমেন্ট'),('info2_title','ক্যাশ অন ডেলিভারি'),('info3_sub','কোয়ালিটি গ্যারান্টি'),('info3_title','১০০% অরিজিনাল'),('maintenance_enabled','0'),('newest_subtitle','সদ্য যোগ হওয়া নতুন সংগ্রহ'),('newest_title','New Arrivals'),('schema_v10_at','2026-11-09 16:46:49'),('schema_v11_at','2026-11-10 11:05:07'),('schema_v12_at','2026-11-10 12:00:05'),('schema_v2_at','2026-11-02 10:21:48'),('schema_v3_at','2026-11-02 12:17:46'),('schema_v4_at','2026-11-02 14:28:59'),('schema_v5_at','2026-11-02 15:10:52'),('schema_v6_at','2026-11-05 11:39:40'),('schema_v7_at','2026-11-09 15:19:13'),('schema_v8_at','2026-11-09 17:43:35'),('schema_v9_at','2026-11-09 16:48:00'),('social_facebook',''),('social_instagram',''),('social_whatsapp',''),('sold_count_label','Delivered'),('store_about','বাংলাদেশের সেরা অনলাইন শপিং প্ল্যাটফর্ম। ক্যাশ অন ডেলিভারি সুবিধা সহ।'),('store_address',''),('store_favicon','/uploads/site_logo/store_favicon_20261102132651_beb56a.png'),('store_logo','/uploads/site_logo/store_logo_1760000969.png'),('store_name','Toy BD'),('theme_primary','#6c5ce7'),('theme_secondary','#ff7675');
+INSERT INTO `settings` VALUES ('animations_enabled','0'),('cod_note','সারা দেশে ক্যাশ অন ডেলিভারি প্রযোজ্য।'),('delivery_dhaka','0'),('delivery_global','120'),('delivery_nationwide','0'),('discount_show_product','0'),('featured_subtitle','আপনার জন্য বাছাই করা সেরা পণ্য'),('featured_title','Featured Products'),('hero_autoplay_ms','2500'),('home_heading','হোম পেজ শিরোনাম'),('home_layout',''),('home_notice','বাংলাদেশের সেরা অনলাইন শপিং প্ল্যাটফর্ম। ক্যাশ অন ডেলিভারি সুবিধা সহ।'),('info1_sub','৩–৫ দিনের মধ্যে'),('info1_title','দ্রুত ডেলিভারি'),('info2_sub','পণ্য হাতে পেয়ে পেমেন্ট'),('info2_title','ক্যাশ অন ডেলিভারি'),('info3_sub','কোয়ালিটি গ্যারান্টি'),('info3_title','১০০% অরিজিনাল'),('maintenance_enabled','0'),('newest_subtitle','সদ্য যোগ হওয়া নতুন সংগ্রহ'),('newest_title','New Arrivals'),('schema_v10_at','2026-11-25 15:24:56'),('schema_v11_at','2026-11-10 11:05:07'),('schema_v12_at','2026-11-25 15:24:57'),('schema_v13_at','2026-11-25 15:24:56'),('schema_v14_at','2026-11-25 15:24:56'),('schema_v15_at','2026-11-25 15:24:56'),('schema_v16_at','2026-11-25 15:14:42'),('schema_v2_at','2026-11-02 10:21:48'),('schema_v3_at','2026-11-02 12:17:46'),('schema_v4_at','2026-11-02 14:28:59'),('schema_v5_at','2026-11-02 15:10:52'),('schema_v6_at','2026-11-05 11:39:40'),('schema_v7_at','2026-11-09 15:19:13'),('schema_v8_at','2026-11-09 17:43:35'),('schema_v9_at','2026-11-25 15:24:57'),('social_facebook',''),('social_instagram',''),('social_whatsapp',''),('sold_count_label','Delivered'),('steadfast_auto_status','0'),('steadfast_enabled','0'),('store_about','বাংলাদেশের সেরা অনলাইন শপিং প্ল্যাটফর্ম। ক্যাশ অন ডেলিভারি সুবিধা সহ।'),('store_address',''),('store_favicon','/uploads/site_logo/store_favicon_20261102132651_beb56a.png'),('store_logo','/uploads/site_logo/store_logo_1760000969.png'),('store_name','Toy BD'),('theme_primary','#6c5ce7'),('theme_secondary','#ff7675');
 DROP TABLE IF EXISTS `sliders`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -446,6 +548,23 @@ CREATE TABLE `subscribers` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+DROP TABLE IF EXISTS `suppliers`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `suppliers` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(120) NOT NULL,
+  `phone` varchar(30) DEFAULT NULL,
+  `address` varchar(255) DEFAULT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
